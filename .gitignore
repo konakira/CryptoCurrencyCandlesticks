@@ -1,4 +1,6 @@
 # Prerequisites
+auth.h
+
 *.d
 
 # Compiled Object files
