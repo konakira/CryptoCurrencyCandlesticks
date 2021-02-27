@@ -124,8 +124,7 @@ ShowCurrentPrice()
 
     // Allocate the JSON document
     // Use arduinojson.org/v6/assistant to compute the capacity.
-    const size_t capacity = 512; // 適当
-    DynamicJsonDocument doc(capacity);
+    StaticJsonDocument<256> doc;
 
     // Parse JSON object
     DeserializationError error = deserializeJson(doc, client);
@@ -140,23 +139,34 @@ ShowCurrentPrice()
 	char buf[256];
 	unsigned long t = (unsigned long)(doc["data"]["timestamp"].as<unsigned long long>() / 1000);
 
+#define TIMEZONE (9 * 3600) // JST-9
+
+#if CONFIGTIMEWORKS
+	configTime(TIMEZONE, 0, nullptr); // set time zone as JST-9
+	// The above is performed without network connection.
+#else
+	t += TIMEZONE;
+#endif
+
 	Serial.print("timestamp = ");
 	Serial.print(year(t));
 	Serial.print("/");
 	Serial.print(month(t));
 	Serial.print("/");
-	Serial.println(day(t));
-
-	Serial.print("last = ");
-	Serial.println(doc["data"]["last"].as<long>());
-	Serial.print("vol = ");
-	Serial.println(doc["data"]["vol"].as<float>());
-	Serial.print("timestamp = ");
-	Serial.println(t);
+	Serial.print(day(t));
+	Serial.print(" ");
+	Serial.print(hour(t));
+	Serial.print(":");
+	if (minute(t) < 10) {
+	  Serial.print("0");
+	}
+	Serial.println(minute(t));
 
 	itocsa(buf, 256, (unsigned)doc["data"]["last"].as<long>());
 	Serial.print("last = ");
 	Serial.println(buf);
+	Serial.print("timestamp = ");
+	Serial.println(t);
 		     
 	tft.setTextSize(1);
 	tft.fillScreen(TFT_BLACK);
