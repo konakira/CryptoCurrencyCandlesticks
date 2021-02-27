@@ -175,6 +175,41 @@ ShowCurrentPrice()
 
       }
     }
+    client.stop();
+  }
+
+  if (!client.connect(SERVER, 443))
+    Serial.println("Connection failed!");
+  else {
+    Serial.println("Connected to server!");
+
+    // Make another HTTP request:
+    client.println("GET https://" SERVER "/eth_jpy/candlestick/5min/20210225 HTTP/1.0");
+    client.println("Host: " SERVER);
+    client.println("Connection: close");
+    client.println();
+    
+    while (client.connected()) {
+      String line = client.readStringUntil('\n');
+      if (line == "\r") {
+	Serial.println("headers received");
+	break;
+      }
+    }
+
+    DynamicJsonDocument doc(50000);
+    DeserializationError error = deserializeJson(doc, client);
+
+    if (error) {
+      Serial.print(F("deserializeJson() failed: "));
+      Serial.println(error.f_str());
+    }
+    else {
+      int success = doc["success"]; // 1
+
+      Serial.print("Success = ");
+      Serial.println(success);
+    }
 
     client.stop();
   }
@@ -208,39 +243,9 @@ void setup()
 
   ShowCurrentPrice();
 
-  if (!client.connect(SERVER, 443))
-    Serial.println("Connection failed!");
-  else {
-    Serial.println("Connected to server!");
-
-    // Make another HTTP request:
-    client.println("GET https://" SERVER "/eth_jpy/candlestick/1min/20210225 HTTP/1.0");
-    client.println("Host: " SERVER);
-    client.println("Connection: close");
-    client.println();
-
-    while (client.connected()) {
-      String line = client.readStringUntil('\n');
-      if (line == "\r") {
-        Serial.println("headers received");
-        break;
-      }
-    }
-   // if there are incoming bytes available
-    // from the server, read them and print them:
-    while (client.available()) {
-      char c = client.read();
-      Serial.write(c);
-    }
-
-    client.stop();
-  }
-
   Serial.println("");
-
   
   timer.setInterval(60000, ShowCurrentPrice);
-  
 }
 
 void loop()
