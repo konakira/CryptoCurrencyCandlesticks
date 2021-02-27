@@ -69,6 +69,34 @@ SimpleTimer timer;
 
 #define SERVER "public.bitbank.cc"
 
+/*
+  function to convert unsigned integer to comma separated numerical string
+*/
+
+void
+itocsa(char *buf, unsigned bufsiz, unsigned n)
+{
+  char *p = buf;
+  unsigned len, i;
+
+  for (i = 1 ; i < n ; i *= 1000);
+  i /= 1000;
+  
+  snprintf(p, bufsiz, "%d", n / i);
+  n = n % i;
+  len = strlen(p);
+  p += len;
+  bufsiz -= len;
+  i /= 1000;
+  while (0 < i) {
+    snprintf(p, bufsiz, ",%03d", n / i);
+    n = n % i;
+    p += 4;
+    bufsiz -= 4;
+    i /= 1000;
+  }
+}
+
 void
 ShowCurrentPrice()
 {
@@ -109,6 +137,8 @@ ShowCurrentPrice()
       // Extract values
       Serial.println(F("Response:"));
       if (doc["success"]) {
+	char buf[256];
+
 	Serial.print("last = ");
 	Serial.println(doc["data"]["last"].as<long>());
 	Serial.print("vol = ");
@@ -116,11 +146,14 @@ ShowCurrentPrice()
 	Serial.print("timestamp = ");
 	Serial.println(doc["data"]["timestamp"].as<time_t>());
 
+	itocsa(buf, 256, (unsigned)doc["data"]["last"].as<long>());
+	Serial.print("last = ");
+	Serial.println(buf);
+		     
 	tft.setTextSize(1);
 	tft.fillScreen(TFT_BLACK);
 	tft.setTextColor(TFT_GREEN, TFT_BLACK);
-	//	tft.drawString("000000", 0, 0, 2);
-	tft.drawNumber(doc["data"]["last"].as<long>(), 30, 40, 7);
+	tft.drawString(buf, 30, 40, 6);
 
       }
     }
@@ -131,6 +164,9 @@ ShowCurrentPrice()
 
 void setup()
 {
+  tft.setTextSize(1);
+  tft.fillScreen(TFT_BLACK);
+
   Serial.begin(115200);
   
   Serial.println("");
