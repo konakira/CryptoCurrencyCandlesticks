@@ -1,13 +1,13 @@
 // #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#define ARDUINOJSON_USE_LONG_LONG 1
 #include <ArduinoJson.h>
 #include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
 #include <SPI.h>
 #include <SimpleTimer.h>
+#include <TimeLib.h>
 
 #include "auth.h"
-
-#define ARDUINOJSON_USE_LONG_LONG 1
 
 /* root CA of bitbank.cc
 MIIEDzCCAvegAwIBAgIBADANBgkqhkiG9w0BAQUFADBoMQswCQYDVQQGEwJVUzEl
@@ -138,13 +138,21 @@ ShowCurrentPrice()
       Serial.println(F("Response:"));
       if (doc["success"]) {
 	char buf[256];
+	unsigned long t = (unsigned long)(doc["data"]["timestamp"].as<unsigned long long>() / 1000);
+
+	Serial.print("timestamp = ");
+	Serial.print(year(t));
+	Serial.print("/");
+	Serial.print(month(t));
+	Serial.print("/");
+	Serial.println(day(t));
 
 	Serial.print("last = ");
 	Serial.println(doc["data"]["last"].as<long>());
 	Serial.print("vol = ");
 	Serial.println(doc["data"]["vol"].as<float>());
 	Serial.print("timestamp = ");
-	Serial.println(doc["data"]["timestamp"].as<time_t>());
+	Serial.println(t);
 
 	itocsa(buf, 256, (unsigned)doc["data"]["last"].as<long>());
 	Serial.print("last = ");
