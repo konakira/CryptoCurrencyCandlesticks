@@ -105,8 +105,8 @@ itocsa(char *buf, unsigned bufsiz, unsigned n)
 #define PRICELINE 10000
 
 #define STICK_WIDTH 3 // width of a candle stick
-#define HOLIZONTAL_RESOLUTION 240 // width of TTGO-T-display
-#define NUM_STICKS (HOLIZONTAL_RESOLUTION / STICK_WIDTH)
+#define HORIZONTAL_RESOLUTION 240 // width of TTGO-T-display
+#define NUM_STICKS (HORIZONTAL_RESOLUTION / STICK_WIDTH)
 struct candlestick {
   unsigned startPrice, endPrice, lowestPrice, highestPrice;
   unsigned long timeStamp;
@@ -201,12 +201,13 @@ obtainSticks(unsigned n, unsigned long t)
 #define MAX_SHORTER_PIXELVAL 134
 
 unsigned prevPrice = 0;
+#define PRICEBUFSIZE 24
 
 void
 ShowCurrentPrice()
 {
   unsigned long t; // for current time
-  char buf[256];
+  char buf[PRICEBUFSIZE];
   unsigned lastPrice = 0;
   unsigned lastPricePixel = 0;
   unsigned stickColor = TFT_RED, priceColor = TFT_GREEN;
@@ -268,7 +269,7 @@ ShowCurrentPrice()
 	Serial.println(minute(t));
 	lastPrice = (unsigned)doc["data"]["last"].as<long>();
 
-	itocsa(buf, 256, lastPrice);
+	itocsa(buf, PRICEBUFSIZE, lastPrice);
 	Serial.print("last = ");
 	Serial.println(buf);
 	Serial.print("timestamp = ");
@@ -313,7 +314,7 @@ ShowCurrentPrice()
 
   for (unsigned i = lowest / PRICELINE + 1 ; i * PRICELINE < highest ; i++) {
     unsigned y = map(i * PRICELINE, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
-    tft.drawFastHLine(0, y, HOLIZONTAL_RESOLUTION, TFT_DARKBLUE);
+    tft.drawFastHLine(0, y, HORIZONTAL_RESOLUTION, TFT_DARKBLUE);
   }
   
   for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
@@ -346,13 +347,16 @@ ShowCurrentPrice()
       prevHour = curHour;
       tft.drawFastVLine(i * 3 + 1, 0, MAX_SHORTER_PIXELVAL, TFT_DARKBLUE);
       if (curHour % 3 == 0) {
-	unsigned textY = 0;
+	if (i * 3 - 5 < HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 10) {
+	  // if we have enough space around vertical line, draw the time
+	  unsigned textY = 0;
 
-	if (lastPricePixel < MAX_SHORTER_PIXELVAL / 2) {
-	  textY = MAX_SHORTER_PIXELVAL - tft.fontHeight(2);
+	  if (lastPricePixel < MAX_SHORTER_PIXELVAL / 2) {
+	    textY = MAX_SHORTER_PIXELVAL - tft.fontHeight(2);
+	  }
+	  tft.setTextColor(TFT_WHITE);
+	  tft.drawNumber(curHour, i * 3 - 5, textY, 2);
 	}
-	tft.setTextColor(TFT_WHITE);
-	tft.drawNumber(curHour, i * 3 - 5, textY, 2);
       }
     }
 
@@ -365,13 +369,36 @@ ShowCurrentPrice()
 #define PRICE_PAD_Y 10
 #define BORDER_WIDTH 2
 
+  // draw highest and lowest price in the chart
+  itocsa(buf, PRICEBUFSIZE, highest);
+  tft.setTextColor(TFT_BLACK);
+  tft.drawString(buf, HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 2, -1, 2);
+  tft.drawString(buf, HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2), 1, 2);
+  tft.setTextColor(TFT_WHITE);
+  tft.drawString(buf, HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 1, 0, 2);
+
+  itocsa(buf, PRICEBUFSIZE, lowest);
+  tft.setTextColor(TFT_BLACK);
+  tft.drawString(buf,
+		 HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 2,
+		 MAX_SHORTER_PIXELVAL - tft.fontHeight(2) - 1, 2);
+  tft.drawString(buf,
+		 HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2),
+		 MAX_SHORTER_PIXELVAL - tft.fontHeight(2) + 1, 2);
+  tft.setTextColor(TFT_WHITE);
+  tft.drawString(buf,
+		 HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 1,
+		 MAX_SHORTER_PIXELVAL - tft.fontHeight(2), 2);
+
+  // draw last price
+  itocsa(buf, PRICEBUFSIZE, lastPrice);
   unsigned stringWidth = tft.textWidth(buf, 6) + PRICE_PAD_X;
   
   // show the current ETH price on TTGO-T-display
   // The following is a quite tentative code. To be updated.
   tft.drawFastHLine(0, lastPricePixel, PRICE_MIN_X, priceColor);
-  tft.drawFastHLine(stringWidth, lastPricePixel, HOLIZONTAL_RESOLUTION - stringWidth, priceColor);
-  // tft.drawFastHLine(0, lastPricePixel, HOLIZONTAL_RESOLUTION, priceColor);
+  tft.drawFastHLine(stringWidth, lastPricePixel, HORIZONTAL_RESOLUTION - stringWidth, priceColor);
+  // tft.drawFastHLine(0, lastPricePixel, HORIZONTAL_RESOLUTION, priceColor);
 
   unsigned textY = lastPricePixel - (tft.fontHeight(6) / 2);
   if (textY < 0) {
