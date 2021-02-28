@@ -349,7 +349,7 @@ ShowCurrentPrice()
 	unsigned textY = 0;
 
 	if (lastPricePixel < MAX_SHORTER_PIXELVAL / 2) {
-	  textY = MAX_SHORTER_PIXELVAL - 10;
+	  textY = MAX_SHORTER_PIXELVAL - tft.fontHeight(2);
 	}
 	tft.setTextColor(TFT_WHITE);
 	tft.drawNumber(curHour, i * 3 - 5, textY, 2);
