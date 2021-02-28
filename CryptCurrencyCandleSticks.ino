@@ -101,6 +101,8 @@ itocsa(char *buf, unsigned bufsiz, unsigned n)
 #define CANDLE_STICK_FOOT_WIDTH "5min"
 #define CANDLE_STICK_FOOT_WIDTH_NUM 5
 
+#define PRICELINE 10000
+
 #define STICK_WIDTH 3 // width of a candle stick
 #define HOLIZONTAL_RESOLUTION 240 // width of TTGO-T-display
 #define NUM_STICKS (HOLIZONTAL_RESOLUTION / STICK_WIDTH)
@@ -169,7 +171,8 @@ obtainSticks(struct candlestick *candlesticks, unsigned n, unsigned long t)
 	    candlesticks[i].lowestPrice = ohlcv[ohlcvIndex][2].as<unsigned>();
 	    candlesticks[i].endPrice = ohlcv[ohlcvIndex][3].as<unsigned>();
 	    candlesticks[i].timeStamp =
-	      (unsigned long)(ohlcv[ohlcvIndex][4].as<unsigned long long>() / 1000);
+	      (unsigned long)(ohlcv[ohlcvIndex][5].as<unsigned long long>() / 1000);
+	    unsigned long aho = (unsigned long)ohlcv[ohlcvIndex][5].as<unsigned long long>();
 	  }
 	  n = 0;
 	}
@@ -182,7 +185,7 @@ obtainSticks(struct candlestick *candlesticks, unsigned n, unsigned long t)
 	    candlesticks[stickIndex].lowestPrice = ohlcv[i][2].as<unsigned>();
 	    candlesticks[stickIndex].endPrice = ohlcv[i][3].as<unsigned>();
 	    candlesticks[stickIndex].timeStamp =
-	      (unsigned long)(ohlcv[i][4].as<unsigned long long>() / 1000);
+	      (unsigned long)(ohlcv[i][5].as<unsigned long long>() / 1000);
 	  }
 	  n -= numSticks; // to fill remaining slots
 	  t -= 24 * 60 * 60; // for data one day before
@@ -276,6 +279,7 @@ ShowCurrentPrice()
   // show the sticks here
   unsigned lowest = candlesticks[0].lowestPrice;
   unsigned highest = candlesticks[0].highestPrice;
+  unsigned prevHour = hour(candlesticks[0].timeStamp);
   for (unsigned i = 1 ; i < NUM_STICKS ; i++) {
     if (candlesticks[i].lowestPrice < lowest) {
       lowest = candlesticks[i].lowestPrice;
@@ -289,10 +293,24 @@ ShowCurrentPrice()
   Serial.print("highest = ");
   Serial.println(highest);
 
+  Serial.print("hour = ");
+  Serial.println(prevHour);
+
+  Serial.print("timeStamp = ");
+  Serial.println(candlesticks[0].timeStamp);
+
   Serial.print("place in pixel = ");
   Serial.println(map(candlesticks[NUM_STICKS - 1].endPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0));
 
   tft.fillScreen(TFT_BLACK);
+
+#define TFT_DARKBLUE        0x000F      /*   0,   0, 127 */
+  
+  for (unsigned i = lowest / PRICELINE + 1 ; i * PRICELINE < highest ; i++) {
+    unsigned y = map(i * PRICELINE, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
+    tft.drawFastHLine(0, y, HOLIZONTAL_RESOLUTION, TFT_DARKBLUE);
+  }
+  
   for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
     unsigned lowestPixel, highestPixel, lowPixel, pixelHeight;
     
@@ -311,8 +329,14 @@ ShowCurrentPrice()
 	- lowPixel;
       stickColor = TFT_RED;
     }
-    
-    tft.drawFastVLine(i * 3 + 1, highestPixel, lowestPixel - highestPixel, TFT_DARKGREY);
+
+    unsigned curHour = hour(candlesticks[i].timeStamp);
+    if (curHour != prevHour) {
+      prevHour = curHour;
+      tft.drawFastVLine(i * 3 + 1, 0, MAX_SHORTER_PIXELVAL, TFT_DARKBLUE);
+    }
+
+    tft.drawFastVLine(i * 3 + 1, highestPixel, lowestPixel - highestPixel, TFT_LIGHTGREY);
     tft.fillRect(i * 3, highestPixel, 3, pixelHeight, stickColor);
   }
 
