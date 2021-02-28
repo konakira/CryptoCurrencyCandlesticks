@@ -4,7 +4,7 @@
 
 This is a program which turns a US$10 cheap ESP32 device with color LCD display (TTGO) into a candlestick display terminal for Ethereum. At this point, it just supports the pair of Ethereum and Japanese Yen.
 
-This program uses Bitbank's public API to obtain candlesticks. The specifications of the API is shown at: https://github.com/bitbankinc/bitbank-api-docs
+This program uses Bitbank's public API to obtain candlesticks. The specifications of the API are shown at: https://github.com/bitbankinc/bitbank-api-docs
 This program uses public candlestick API written here: https://github.com/bitbankinc/bitbank-api-docs/blob/master/public-api.md
 You do not have to obtain API key to access the API.
 
