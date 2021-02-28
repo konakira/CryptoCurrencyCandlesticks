@@ -209,7 +209,7 @@ ShowCurrentPrice()
   unsigned long t; // for current time
   char buf[PRICEBUFSIZE];
   unsigned lastPrice = 0;
-  unsigned lastPricePixel = 0;
+  int lastPricePixel = 0;
   unsigned stickColor = TFT_RED, priceColor = TFT_GREEN;
   
   client.setCACert(bitbank_root_ca);
@@ -318,7 +318,7 @@ ShowCurrentPrice()
   }
   
   for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
-    unsigned lowestPixel, highestPixel, lowPixel, pixelHeight;
+    int lowestPixel, highestPixel, lowPixel, pixelHeight;
     
     lowestPixel = map(candlesticks[i].lowestPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
     highestPixel = map(candlesticks[i].highestPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
@@ -400,7 +400,7 @@ ShowCurrentPrice()
   tft.drawFastHLine(stringWidth, lastPricePixel, HORIZONTAL_RESOLUTION - stringWidth, priceColor);
   // tft.drawFastHLine(0, lastPricePixel, HORIZONTAL_RESOLUTION, priceColor);
 
-  unsigned textY = lastPricePixel - (tft.fontHeight(6) / 2);
+  int textY = lastPricePixel - (tft.fontHeight(6) / 2);
   if (textY < 0) {
     textY = 0;
   }
