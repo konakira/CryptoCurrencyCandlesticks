@@ -400,7 +400,10 @@ void setup()
   // initialize TFT screen
   tft.init(); // equivalent to tft.begin();
   tft.setRotation(1);
-  tft.fillScreen(TFT_BLACK);
+  tft.fillScreen(TFT_BLUE);
+  tft.setTextColor(TFT_WHITE);
+  tft.drawString("Connecting ...",
+		 0, MAX_SHORTER_PIXELVAL / 2 - tft.fontHeight(4) / 2, 4);
   tft.setTextSize(1);
 
   Serial.print("Attempting to connect to WiFi ");
