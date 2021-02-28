@@ -198,6 +198,10 @@ void
 ShowCurrentPrice()
 {
   unsigned long t; // for current time
+  char buf[256];
+  unsigned lastPrice = 0;
+  unsigned lastPricePixel = 0;
+  unsigned stickColor = TFT_RED;
   
   client.setCACert(bitbank_root_ca);
 
@@ -236,7 +240,6 @@ ShowCurrentPrice()
       // Extract values
       Serial.println(F("Response:"));
       if (doc["success"]) {
-	char buf[256];
 
 	// Obtaining time stamp of ticker response and use it as the current time,
 	// instead of obtaining current time by NTP.
@@ -255,19 +258,13 @@ ShowCurrentPrice()
 	  Serial.print("0");
 	}
 	Serial.println(minute(t));
+	lastPrice = (unsigned)doc["data"]["last"].as<long>();
 
-	itocsa(buf, 256, (unsigned)doc["data"]["last"].as<long>());
+	itocsa(buf, 256, lastPrice);
 	Serial.print("last = ");
 	Serial.println(buf);
 	Serial.print("timestamp = ");
 	Serial.println(t);
-
-	// show the current ETH price on TTGO-T-display
-	// The following is a quite tentative code. To be updated.
-	tft.setTextSize(1);
-	tft.fillScreen(TFT_BLACK);
-	tft.setTextColor(TFT_GREEN, TFT_BLACK);
-	tft.drawString(buf, 30, 40, 6);
       }
     }
     client.stop();
@@ -293,7 +290,50 @@ ShowCurrentPrice()
   Serial.println(highest);
 
   Serial.print("place in pixel = ");
-  Serial.println(map(candlesticks[0].endPrice, lowest, highest, 0, MAX_SHORTER_PIXELVAL));
+  Serial.println(map(candlesticks[NUM_STICKS - 1].endPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0));
+
+  tft.fillScreen(TFT_BLACK);
+  for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
+    unsigned lowestPixel, highestPixel, lowPixel, pixelHeight;
+    
+    lowestPixel = map(candlesticks[i].lowestPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
+    highestPixel = map(candlesticks[i].highestPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
+
+    if (candlesticks[i].startPrice < candlesticks[i].endPrice) {
+      lowPixel = map(candlesticks[i].endPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
+      pixelHeight = map(candlesticks[i].startPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0)
+	- lowPixel;
+      stickColor = TFT_GREEN;
+    }
+    else {
+      lowPixel = map(candlesticks[i].startPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
+      pixelHeight = map(candlesticks[i].endPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0)
+	- lowPixel;
+      stickColor = TFT_RED;
+    }
+    
+    tft.drawFastVLine(i * 3 + 1, highestPixel, lowestPixel - highestPixel, TFT_DARKGREY);
+    tft.fillRect(i * 3, highestPixel, 3, pixelHeight, stickColor);
+  }
+
+#define LOWEST_THRESHOLD 40
+#define FONT_HEIGHT 20
+  
+  // show the current ETH price on TTGO-T-display
+  // The following is a quite tentative code. To be updated.
+  tft.setTextSize(1);
+  tft.setTextColor(stickColor, TFT_BLACK);
+  lastPricePixel = map(lastPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
+  tft.drawFastHLine(0, lastPricePixel, HOLIZONTAL_RESOLUTION, stickColor);
+
+  unsigned textY = lastPricePixel - (FONT_HEIGHT / 2);
+  if (textY < 0) {
+    textY = 0;
+  }
+  else if (MAX_SHORTER_PIXELVAL - LOWEST_THRESHOLD < textY) {
+    textY = MAX_SHORTER_PIXELVAL - LOWEST_THRESHOLD;
+  }
+  tft.drawString(buf, 0, textY, 6);
 }
 
 void setup()
