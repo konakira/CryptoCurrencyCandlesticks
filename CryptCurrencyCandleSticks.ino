@@ -362,6 +362,7 @@ ShowCurrentPrice()
 
 #define PRICE_MIN_X 5
 #define PRICE_PAD_X 3
+#define PRICE_PAD_Y 10
 
   unsigned stringWidth = tft.textWidth(buf, 6) + PRICE_PAD_X;
   
@@ -376,8 +377,8 @@ ShowCurrentPrice()
   if (textY < 0) {
     textY = 0;
   }
-  else if (MAX_SHORTER_PIXELVAL - tft.fontHeight(6) < textY) {
-    textY = MAX_SHORTER_PIXELVAL - tft.fontHeight(6);
+  else if (MAX_SHORTER_PIXELVAL - tft.fontHeight(6) + PRICE_PAD_Y < textY) {
+    textY = MAX_SHORTER_PIXELVAL - tft.fontHeight(6) + PRICE_PAD_Y;
   }
   //  tft.setFreeFont(FF20);
   //  tft.setTextSize(2);
