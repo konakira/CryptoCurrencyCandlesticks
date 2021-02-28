@@ -360,25 +360,24 @@ ShowCurrentPrice()
     tft.fillRect(i * 3, highestPixel, 3, pixelHeight, stickColor);
   }
 
-#define LOWEST_THRESHOLD 40
-#define FONT_HEIGHT 38
-  
 #define PRICE_MIN_X 5
-#define PRICE_MAX_X 180
+#define PRICE_PAD_X 3
+
+  unsigned stringWidth = tft.textWidth(buf, 6) + PRICE_PAD_X;
   
   // show the current ETH price on TTGO-T-display
   // The following is a quite tentative code. To be updated.
   tft.setTextColor(priceColor);
   tft.drawFastHLine(0, lastPricePixel, PRICE_MIN_X, priceColor);
-  tft.drawFastHLine(PRICE_MAX_X, lastPricePixel, HOLIZONTAL_RESOLUTION - PRICE_MAX_X, priceColor);
+  tft.drawFastHLine(stringWidth, lastPricePixel, HOLIZONTAL_RESOLUTION - stringWidth, priceColor);
   // tft.drawFastHLine(0, lastPricePixel, HOLIZONTAL_RESOLUTION, priceColor);
 
-  unsigned textY = lastPricePixel - (FONT_HEIGHT / 2);
+  unsigned textY = lastPricePixel - (tft.fontHeight(6) / 2);
   if (textY < 0) {
     textY = 0;
   }
-  else if (MAX_SHORTER_PIXELVAL - LOWEST_THRESHOLD < textY) {
-    textY = MAX_SHORTER_PIXELVAL - LOWEST_THRESHOLD;
+  else if (MAX_SHORTER_PIXELVAL - tft.fontHeight(6) < textY) {
+    textY = MAX_SHORTER_PIXELVAL - tft.fontHeight(6);
   }
   //  tft.setFreeFont(FF20);
   //  tft.setTextSize(2);
