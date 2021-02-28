@@ -97,9 +97,108 @@ itocsa(char *buf, unsigned bufsiz, unsigned n)
   }
 }
 
+#define CURRENCY_PAIR "eth_jpy"
+#define CANDLE_STICK_FOOT_WIDTH "5min"
+#define CANDLE_STICK_FOOT_WIDTH_NUM 5
+
+#define STICK_WIDTH 3 // width of a candle stick
+#define HOLIZONTAL_RESOLUTION 240 // width of TTGO-T-display
+#define NUM_STICKS (HOLIZONTAL_RESOLUTION / STICK_WIDTH)
+struct candlestick {
+  unsigned startPrice, endPrice, lowestPrice, highestPrice;
+  unsigned long timeStamp;
+};
+
+void
+obtainSticks(struct candlestick *candlesticks, unsigned n, unsigned long t)
+{
+  Serial.println("\nobtainSticks called.");
+
+  while (0 < n) {
+    if (!client.connect(SERVER, 443))
+      Serial.println("\nConnection failed!");
+    else {
+      Serial.println("\nConnected to server!");
+
+      // Make another HTTP request:
+      client.print("GET https://" SERVER "/" CURRENCY_PAIR "/candlestick/" CANDLE_STICK_FOOT_WIDTH "/");
+      {
+	char yyyymmdd[9]; // 9 for "yyyymmdd"
+	sprintf(yyyymmdd, "%04d%02d%02d", year(t), month(t), day(t));
+	client.print(yyyymmdd);
+	client.println(" HTTP/1.0");
+      }
+      client.println("Host: " SERVER);
+      client.println("Connection: close");
+      client.println();
+    
+      while (client.connected()) {
+	String line = client.readStringUntil('\n');
+	Serial.println(line); // echo response headers
+	if (line == "\r") {
+	  // Serial.println("headers received");
+	  break;
+	}
+      }
+
+      DynamicJsonDocument doc(50000);
+      DeserializationError error = deserializeJson(doc, client);
+      client.stop();
+
+      if (error) {
+	Serial.print(F("deserializeJson() failed: "));
+	Serial.println(error.f_str());
+      }
+      else {
+	int success = doc["success"]; // 1
+
+	JsonArray ohlcv = doc["data"]["candlestick"][0]["ohlcv"];
+	unsigned numSticks = ohlcv.size();
+
+	Serial.print("Success = ");
+	Serial.println(success);
+
+	Serial.print("Number of sticks = ");
+	Serial.println(numSticks);
+	if (n <= numSticks) { // enough sticks obtained
+	  for (unsigned i = 0 ; i < n ; i++) {
+	    // copy the last n data from JSON
+	    unsigned ohlcvIndex = i + numSticks - n;
+	    candlesticks[i].startPrice = ohlcv[ohlcvIndex][0].as<unsigned>();
+	    candlesticks[i].highestPrice = ohlcv[ohlcvIndex][1].as<unsigned>();
+	    candlesticks[i].lowestPrice = ohlcv[ohlcvIndex][2].as<unsigned>();
+	    candlesticks[i].endPrice = ohlcv[ohlcvIndex][3].as<unsigned>();
+	    candlesticks[i].timeStamp =
+	      (unsigned long)(ohlcv[ohlcvIndex][4].as<unsigned long long>() / 1000);
+	  }
+	  n = 0;
+	}
+	else {
+	  for (unsigned i = 0 ; i < numSticks ; i++) {
+	    // copy the all n data from JSON
+	    unsigned stickIndex = i + n - numSticks;
+	    candlesticks[stickIndex].startPrice = ohlcv[i][0].as<unsigned>();
+	    candlesticks[stickIndex].highestPrice = ohlcv[i][1].as<unsigned>();
+	    candlesticks[stickIndex].lowestPrice = ohlcv[i][2].as<unsigned>();
+	    candlesticks[stickIndex].endPrice = ohlcv[i][3].as<unsigned>();
+	    candlesticks[stickIndex].timeStamp =
+	      (unsigned long)(ohlcv[i][4].as<unsigned long long>() / 1000);
+	  }
+	  n -= numSticks; // to fill remaining slots
+	  t -= 24 * 60 * 60; // for data one day before
+	}
+      }
+    }
+  }
+}
+
+#define MAX_SHORTER_PIXELVAL 134
+
 void
 ShowCurrentPrice()
 {
+  unsigned long t; // for current time
+  
   client.setCACert(bitbank_root_ca);
 
   Serial.println("\nStarting connection to server...");
@@ -109,15 +208,16 @@ ShowCurrentPrice()
   else {
     Serial.println("Connected to server!");
     // Make a HTTP request:
-    client.println("GET https://" SERVER "/eth_jpy/ticker HTTP/1.0");
+    client.println("GET https://" SERVER "/" CURRENCY_PAIR "/ticker HTTP/1.0");
     client.println("Host: " SERVER);
     client.println("Connection: close");
     client.println();
 
     while (client.connected()) {
       String line = client.readStringUntil('\n');
+      Serial.println(line); // echo response headers
       if (line == "\r") {
-        Serial.println("headers received");
+        // Serial.println("headers received");
         break;
       }
     }
@@ -137,16 +237,10 @@ ShowCurrentPrice()
       Serial.println(F("Response:"));
       if (doc["success"]) {
 	char buf[256];
-	unsigned long t = (unsigned long)(doc["data"]["timestamp"].as<unsigned long long>() / 1000);
 
-#define TIMEZONE (9 * 3600) // JST-9
-
-#if CONFIGTIMEWORKS
-	configTime(TIMEZONE, 0, nullptr); // set time zone as JST-9
-	// The above is performed without network connection.
-#else
-	t += TIMEZONE;
-#endif
+	// Obtaining time stamp of ticker response and use it as the current time,
+	// instead of obtaining current time by NTP.
+	t = (unsigned long)(doc["data"]["timestamp"].as<unsigned long long>() / 1000);
 
 	Serial.print("timestamp = ");
 	Serial.print(year(t));
@@ -167,52 +261,39 @@ ShowCurrentPrice()
 	Serial.println(buf);
 	Serial.print("timestamp = ");
 	Serial.println(t);
-		     
+
+	// show the current ETH price on TTGO-T-display
+	// The following is a quite tentative code. To be updated.
 	tft.setTextSize(1);
 	tft.fillScreen(TFT_BLACK);
 	tft.setTextColor(TFT_GREEN, TFT_BLACK);
 	tft.drawString(buf, 30, 40, 6);
-
       }
     }
     client.stop();
   }
+  struct candlestick candlesticks[NUM_STICKS];
 
-  if (!client.connect(SERVER, 443))
-    Serial.println("Connection failed!");
-  else {
-    Serial.println("Connected to server!");
+  obtainSticks(candlesticks, NUM_STICKS, t);
 
-    // Make another HTTP request:
-    client.println("GET https://" SERVER "/eth_jpy/candlestick/5min/20210225 HTTP/1.0");
-    client.println("Host: " SERVER);
-    client.println("Connection: close");
-    client.println();
-    
-    while (client.connected()) {
-      String line = client.readStringUntil('\n');
-      if (line == "\r") {
-	Serial.println("headers received");
-	break;
-      }
+  // show the sticks here
+  unsigned lowest = candlesticks[0].lowestPrice;
+  unsigned highest = candlesticks[0].highestPrice;
+  for (unsigned i = 1 ; i < NUM_STICKS ; i++) {
+    if (candlesticks[i].lowestPrice < lowest) {
+      lowest = candlesticks[i].lowestPrice;
     }
-
-    DynamicJsonDocument doc(50000);
-    DeserializationError error = deserializeJson(doc, client);
-
-    if (error) {
-      Serial.print(F("deserializeJson() failed: "));
-      Serial.println(error.f_str());
+    if (highest < candlesticks[i].highestPrice) {
+      highest = candlesticks[i].highestPrice;
     }
-    else {
-      int success = doc["success"]; // 1
-
-      Serial.print("Success = ");
-      Serial.println(success);
-    }
-
-    client.stop();
   }
+  Serial.print("lowest = ");
+  Serial.println(lowest);
+  Serial.print("highest = ");
+  Serial.println(highest);
+
+  Serial.print("place in pixel = ");
+  Serial.println(map(candlesticks[0].endPrice, lowest, highest, 0, MAX_SHORTER_PIXELVAL));
 }
 
 void setup()
