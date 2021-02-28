@@ -29,3 +29,7 @@ The following are required to compile and run this program:
 I purchased another TTGO-T-ESP32, and I will develop Bitcoin version. I anticipate that it will take a few weeks until the new one will arrive.
 
 I do not have any plan to support any other currency nor fiat currency. In addition, I do not have any plan to support any other API provided by other Cryptocurrency exchanges.
+
+## Issues
+
+Delimiter is not properly shown https://github.com/konakira/CryptoCurrencyCandleSticks/issues/1#issue-818158019
