@@ -384,7 +384,6 @@ ShowCurrentPrice()
   //  tft.setTextSize(2);
   tft.setTextColor(TFT_BLACK);
   tft.drawString(buf, - BORDER_WIDTH, textY - BORDER_WIDTH, 6);
-  tft.setTextColor(TFT_DARKGREY);
   tft.drawString(buf, BORDER_WIDTH, textY + BORDER_WIDTH, 6);
   tft.setTextColor(priceColor);
   tft.drawString(buf, 0, textY, 6);
