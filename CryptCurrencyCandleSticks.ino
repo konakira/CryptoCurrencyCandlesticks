@@ -2,6 +2,7 @@
 #include <WiFiClientSecure.h>
 #define ARDUINOJSON_USE_LONG_LONG 1
 #include <ArduinoJson.h>
+//#include <Free_Fonts.h>
 #include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
 #include <SPI.h>
 #include <SimpleTimer.h>
@@ -111,8 +112,10 @@ struct candlestick {
   unsigned long timeStamp;
 };
 
+struct candlestick candlesticks[NUM_STICKS];
+
 void
-obtainSticks(struct candlestick *candlesticks, unsigned n, unsigned long t)
+obtainSticks(unsigned n, unsigned long t)
 {
   Serial.println("\nobtainSticks called.");
 
@@ -197,6 +200,8 @@ obtainSticks(struct candlestick *candlesticks, unsigned n, unsigned long t)
 
 #define MAX_SHORTER_PIXELVAL 134
 
+unsigned prevPrice = 0;
+
 void
 ShowCurrentPrice()
 {
@@ -204,7 +209,7 @@ ShowCurrentPrice()
   char buf[256];
   unsigned lastPrice = 0;
   unsigned lastPricePixel = 0;
-  unsigned stickColor = TFT_RED;
+  unsigned stickColor = TFT_RED, priceColor = TFT_GREEN;
   
   client.setCACert(bitbank_root_ca);
 
@@ -272,14 +277,14 @@ ShowCurrentPrice()
     }
     client.stop();
   }
-  struct candlestick candlesticks[NUM_STICKS];
+  obtainSticks(NUM_STICKS, t);
 
-  obtainSticks(candlesticks, NUM_STICKS, t);
-
+#define TIMEZONE (9 * 60 * 60)
+  
   // show the sticks here
   unsigned lowest = candlesticks[0].lowestPrice;
   unsigned highest = candlesticks[0].highestPrice;
-  unsigned prevHour = hour(candlesticks[0].timeStamp);
+  unsigned prevHour = hour(candlesticks[0].timeStamp + TIMEZONE);
   for (unsigned i = 1 ; i < NUM_STICKS ; i++) {
     if (candlesticks[i].lowestPrice < lowest) {
       lowest = candlesticks[i].lowestPrice;
@@ -305,7 +310,7 @@ ShowCurrentPrice()
   tft.fillScreen(TFT_BLACK);
 
 #define TFT_DARKBLUE        0x000F      /*   0,   0, 127 */
-  
+
   for (unsigned i = lowest / PRICELINE + 1 ; i * PRICELINE < highest ; i++) {
     unsigned y = map(i * PRICELINE, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
     tft.drawFastHLine(0, y, HOLIZONTAL_RESOLUTION, TFT_DARKBLUE);
@@ -330,10 +335,25 @@ ShowCurrentPrice()
       stickColor = TFT_RED;
     }
 
-    unsigned curHour = hour(candlesticks[i].timeStamp);
+    lastPricePixel = map(lastPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
+    if (lastPrice < prevPrice) {
+      priceColor = TFT_RED;
+    }
+    prevPrice = lastPrice;
+
+    unsigned curHour = hour(candlesticks[i].timeStamp + TIMEZONE);
     if (curHour != prevHour) {
       prevHour = curHour;
       tft.drawFastVLine(i * 3 + 1, 0, MAX_SHORTER_PIXELVAL, TFT_DARKBLUE);
+      if (curHour % 3 == 0) {
+	unsigned textY = 0;
+
+	if (lastPricePixel < MAX_SHORTER_PIXELVAL / 2) {
+	  textY = MAX_SHORTER_PIXELVAL - 10;
+	}
+	tft.setTextColor(TFT_WHITE);
+	tft.drawNumber(curHour, i * 3 - 5, textY, 2);
+      }
     }
 
     tft.drawFastVLine(i * 3 + 1, highestPixel, lowestPixel - highestPixel, TFT_LIGHTGREY);
@@ -341,14 +361,17 @@ ShowCurrentPrice()
   }
 
 #define LOWEST_THRESHOLD 40
-#define FONT_HEIGHT 20
+#define FONT_HEIGHT 38
+  
+#define PRICE_MIN_X 5
+#define PRICE_MAX_X 180
   
   // show the current ETH price on TTGO-T-display
   // The following is a quite tentative code. To be updated.
-  tft.setTextSize(1);
-  tft.setTextColor(stickColor, TFT_BLACK);
-  lastPricePixel = map(lastPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
-  tft.drawFastHLine(0, lastPricePixel, HOLIZONTAL_RESOLUTION, stickColor);
+  tft.setTextColor(priceColor);
+  tft.drawFastHLine(0, lastPricePixel, PRICE_MIN_X, priceColor);
+  tft.drawFastHLine(PRICE_MAX_X, lastPricePixel, HOLIZONTAL_RESOLUTION - PRICE_MAX_X, priceColor);
+  // tft.drawFastHLine(0, lastPricePixel, HOLIZONTAL_RESOLUTION, priceColor);
 
   unsigned textY = lastPricePixel - (FONT_HEIGHT / 2);
   if (textY < 0) {
@@ -357,21 +380,24 @@ ShowCurrentPrice()
   else if (MAX_SHORTER_PIXELVAL - LOWEST_THRESHOLD < textY) {
     textY = MAX_SHORTER_PIXELVAL - LOWEST_THRESHOLD;
   }
+  //  tft.setFreeFont(FF20);
+  //  tft.setTextSize(2);
   tft.drawString(buf, 0, textY, 6);
+  //  tft.setTextSize(1);
+  //  tft.drawString(buf, 0, textY, GFXFF);
 }
 
 void setup()
 {
-  tft.setTextSize(1);
-  tft.fillScreen(TFT_BLACK);
-
   Serial.begin(115200);
   
   Serial.println("");
 
   // initialize TFT screen
-  tft.init();
+  tft.init(); // equivalent to tft.begin();
   tft.setRotation(1);
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextSize(1);
 
   Serial.print("Attempting to connect to WiFi ");
   WiFi.begin(WIFIAP, WIFIPW);
