@@ -61,8 +61,10 @@ const char* bitbank_root_ca= \
      "WQPJIrSPnNVeKtelttQKbfi3QBFGmh95DmK/D5fs4C8fF5Q=\n" \
      "-----END CERTIFICATE-----\n";
 
-TFT_eSPI tft = TFT_eSPI();  // Invoke library, pins defined in User_Setup.h
+#define HORIZONTAL_RESOLUTION 240 // width of TTGO-T-display
+#define MAX_SHORTER_PIXELVAL 134
 
+TFT_eSPI tft = TFT_eSPI();  // Invoke library, pins defined in User_Setup.h
 
 WiFiClientSecure client;
 
@@ -112,7 +114,6 @@ static unsigned currencyIndex = 0; // ETH by default.
 #define BUTTON2 0 // GPIO0
 
 #define STICK_WIDTH 3 // width of a candle stick
-#define HORIZONTAL_RESOLUTION 240 // width of TTGO-T-display
 #define NUM_STICKS (HORIZONTAL_RESOLUTION / STICK_WIDTH)
 struct candlestick {
   unsigned startPrice, endPrice, lowestPrice, highestPrice;
@@ -215,10 +216,9 @@ obtainSticks(unsigned n, unsigned long t)
   }
 }
 
-#define MAX_SHORTER_PIXELVAL 134
-
 unsigned prevPrice = 0;
 int prevPricePixel;
+unsigned long prevTimestamp = 0;
 #define PRICEBUFSIZE 24
 
 #define PRICE_MIN_X 5
@@ -291,6 +291,8 @@ SerialPrintTimestamp(unsigned t, unsigned tz)
 // #define TFT_RED         0xF800      /* 255,   0,   0 */
 // #define TFT_GREEN       0x07E0      /*   0, 255,   0 */
 
+#define ALERT_DURATION 20
+static unsigned alertDuration = 0;
 
 void
 ShowCurrentPrice()
@@ -449,12 +451,6 @@ ShowCurrentPrice()
       stickColor = TFT_DOWNRED;
     }
 
-    prevPricePixel = lastPricePixel = map(lastPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
-    if (lastPrice < prevPrice) {
-      priceColor = TFT_RED;
-    }
-    prevPrice = lastPrice;
-
     unsigned curHour = hour(candlesticks[i].timeStamp + TIMEZONE);
     if (curHour != prevHour) {
       prevHour = curHour;
@@ -472,47 +468,102 @@ ShowCurrentPrice()
 	}
       }
     }
-
     tft.drawFastVLine(i * 3 + 1, highestPixel, lowestPixel - highestPixel, TFT_LIGHTGREY);
     tft.fillRect(i * 3, highestPixel, 3, pixelHeight, stickColor);
   }
+#define ONEMINUTE_THRESHOLD 1 // per cent
+#define FIVEMINUTES_THRESHOLD 2 // per cent
+#define PADX 5
+#define PADY 5
+#define MESGSIZE 64
+  char alertmesg[MESGSIZE] = "";
+  unsigned alertfgcolor, alertbgcolor;
+  if (0 < prevPrice && ONEMINUTE_THRESHOLD <= abs((long)lastPrice - (long)prevPrice) * 100 / (long)prevPrice) {
+    if (prevPrice < lastPrice) {
+      snprintf(alertmesg, MESGSIZE, "%.1f%% up within",
+	       (float)(lastPrice - prevPrice) * 100.0 / (float)prevPrice);
+      tft.fillScreen(TFT_UPGREEN);
+    }
+    else {
+      snprintf(alertmesg, MESGSIZE, "%.1f%% down within",
+	       (float)(prevPrice - lastPrice) * 100.0 / (float)prevPrice);
+      tft.fillScreen(TFT_DOWNRED);
+    }
+    tft.drawString("a minute.", PADX, tft.fontHeight(4) + PADY, 4);
+    alertDuration = ALERT_DURATION;
+  }
+  else if (prevTimestamp != candlesticks[NUM_STICKS - 1].timeStamp &&
+	   FIVEMINUTES_THRESHOLD <=
+	   abs((long)candlesticks[NUM_STICKS -1].startPrice - (long)candlesticks[NUM_STICKS -1].endPrice)
+	   * 100 / (long)candlesticks[NUM_STICKS - 1].startPrice) {
+    prevTimestamp = candlesticks[NUM_STICKS - 1].timeStamp;
+    if (candlesticks[NUM_STICKS - 1].startPrice < candlesticks[NUM_STICKS - 1].endPrice) {
+      tft.fillScreen(TFT_UPGREEN);
+      snprintf(alertmesg, MESGSIZE, "%.1f%% up within",
+	       (float)(candlesticks[NUM_STICKS -1 ].endPrice - candlesticks[NUM_STICKS - 1].startPrice) * 100.0
+	       / (float)candlesticks[NUM_STICKS - 1].startPrice);
+    }
+    else {
+      tft.fillScreen(TFT_DOWNRED);
+      snprintf(alertmesg, MESGSIZE, "%.1f%% down within",
+	       (float)(candlesticks[NUM_STICKS -1 ].startPrice - candlesticks[NUM_STICKS - 1].endPrice) * 100.0
+	       / (float)candlesticks[NUM_STICKS - 1].startPrice); 
+    }
+    tft.drawString("5 minutes.", PADX, tft.fontHeight(4) + PADY, 4);
+    alertDuration = ALERT_DURATION;
+  }
+  if (0 < alertDuration) {
+    tft.drawString(alertmesg, PADX, PADY, 4);
+    itocsa(buf, PRICEBUFSIZE, lastPrice);
+    tft.drawString(buf,
+		   HORIZONTAL_RESOLUTION / 2 - tft.textWidth(buf, GFXFF) / 2,
+		   MAX_SHORTER_PIXELVAL - tft.fontHeight(GFXFF), GFXFF);
+    prevPrice = lastPrice;
+  }
+  else {
+    prevPricePixel = lastPricePixel = map(lastPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
+    if (lastPrice < prevPrice) {
+      priceColor = TFT_RED;
+    }
+    prevPrice = lastPrice;
 
-  // draw highest and lowest price in the chart
-  itocsa(buf, PRICEBUFSIZE, highest);
-  tft.setTextColor(TFT_BLACK);
-  tft.drawString(buf, HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 2, -1, 2);
-  tft.drawString(buf, HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2), 1, 2);
-  tft.setTextColor(TFT_WHITE);
-  tft.drawString(buf, HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 1, 0, 2);
+    // draw highest and lowest price in the chart
+    itocsa(buf, PRICEBUFSIZE, highest);
+    tft.setTextColor(TFT_BLACK);
+    tft.drawString(buf, HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 2, -1, 2);
+    tft.drawString(buf, HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2), 1, 2);
+    tft.setTextColor(TFT_WHITE);
+    tft.drawString(buf, HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 1, 0, 2);
 
-  itocsa(buf, PRICEBUFSIZE, lowest);
-  tft.setTextColor(TFT_BLACK);
-  tft.drawString(buf,
-		 HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 2,
-		 MAX_SHORTER_PIXELVAL - tft.fontHeight(2) - 1, 2);
-  tft.drawString(buf,
-		 HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2),
-		 MAX_SHORTER_PIXELVAL - tft.fontHeight(2) + 1, 2);
-  tft.setTextColor(TFT_WHITE);
-  tft.drawString(buf,
-		 HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 1,
-		 MAX_SHORTER_PIXELVAL - tft.fontHeight(2), 2);
+    itocsa(buf, PRICEBUFSIZE, lowest);
+    tft.setTextColor(TFT_BLACK);
+    tft.drawString(buf,
+		   HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 2,
+		   MAX_SHORTER_PIXELVAL - tft.fontHeight(2) - 1, 2);
+    tft.drawString(buf,
+		   HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2),
+		   MAX_SHORTER_PIXELVAL - tft.fontHeight(2) + 1, 2);
+    tft.setTextColor(TFT_WHITE);
+    tft.drawString(buf,
+		   HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 1,
+		   MAX_SHORTER_PIXELVAL - tft.fontHeight(2), 2);
 
-  // show currency name
-  ShowCurrencyName(currencies[currencyIndex].name, lastPricePixel);
+    // show currency name
+    ShowCurrencyName(currencies[currencyIndex].name, lastPricePixel);
   
-  // draw last price
-  itocsa(buf, PRICEBUFSIZE, lastPrice);
+    // draw last price
+    itocsa(buf, PRICEBUFSIZE, lastPrice);
 
-  unsigned stringWidth = tft.textWidth(buf, GFXFF) + PRICE_PAD_X;
+    unsigned stringWidth = tft.textWidth(buf, GFXFF) + PRICE_PAD_X;
   
-  // show the current cryptocurrency price on TTGO-T-display
-  // The following is a quite tentative code. To be updated.
-  tft.drawFastHLine(0, lastPricePixel, PRICE_MIN_X, priceColor);
-  tft.drawFastHLine(stringWidth, lastPricePixel, HORIZONTAL_RESOLUTION - stringWidth, priceColor);
-  // tft.drawFastHLine(0, lastPricePixel, HORIZONTAL_RESOLUTION, priceColor);
+    // show the current cryptocurrency price on TTGO-T-display
+    // The following is a quite tentative code. To be updated.
+    tft.drawFastHLine(0, lastPricePixel, PRICE_MIN_X, priceColor);
+    tft.drawFastHLine(stringWidth, lastPricePixel, HORIZONTAL_RESOLUTION - stringWidth, priceColor);
+    // tft.drawFastHLine(0, lastPricePixel, HORIZONTAL_RESOLUTION, priceColor);
 
-  ShowLastPrice(buf, lastPricePixel, priceColor);
+    ShowLastPrice(buf, lastPricePixel, priceColor);
+  }
 }
 
 static bool changeTriggered = false;
@@ -523,12 +574,13 @@ void buttonEventProc()
   changeTriggered = true;
 }
 
-void SwitchWatcher()
+void SecProc()
 {
   if (changeTriggered) {
     char buf[PRICEBUFSIZE];
     
     changeTriggered = false;
+    alertDuration = 0;
     
     Serial.println("\nChange triggered.");
 
@@ -546,6 +598,13 @@ void SwitchWatcher()
     prevPrice = 0;
     ShowCurrentPrice();
   }
+  if (0 < alertDuration) {
+    tft.invertDisplay(alertDuration % 2);
+    alertDuration--;
+    if (alertDuration == 0) {
+      ShowCurrentPrice();
+    }
+  }
 }
 
 void setup()
@@ -561,7 +620,7 @@ void setup()
   tft.fillScreen(TFT_BLUE);
   tft.setTextColor(TFT_WHITE);
   tft.drawString("Connecting ...",
-		 BORDER_WIDTH, MAX_SHORTER_PIXELVAL / 2 - tft.fontHeight(4) / 2, 4);
+		 PADX, MAX_SHORTER_PIXELVAL / 2 - tft.fontHeight(4) / 2, 4);
   tft.setTextSize(1);
   tft.setFreeFont(PRICE_FONT); // Select a font for last price display
 
@@ -585,7 +644,7 @@ void setup()
   attachInterrupt(digitalPinToInterrupt(BUTTON1), buttonEventProc, FALLING);
   attachInterrupt(digitalPinToInterrupt(BUTTON2), buttonEventProc, FALLING);
   
-  timer.setInterval(1000, SwitchWatcher);
+  timer.setInterval(1000, SecProc);
   timer.setInterval(60000, ShowCurrentPrice);
 }
 
