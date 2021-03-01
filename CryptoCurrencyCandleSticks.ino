@@ -2,12 +2,12 @@
 #include <WiFiClientSecure.h>
 #define ARDUINOJSON_USE_LONG_LONG 1
 #include <ArduinoJson.h>
-//#include <Free_Fonts.h>
 #include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
 #include <SPI.h>
 #include <SimpleTimer.h>
 #include <TimeLib.h>
 
+#include "Free_Fonts.h"
 #include "auth.h"
 
 /* root CA of bitbank.cc
@@ -224,6 +224,8 @@ int prevPricePixel;
 #define PRICE_PAD_Y 10
 #define BORDER_WIDTH 2
 
+#define PRICE_FONT FF44 // 20, 24, (36,) 44 are candidates for a price font
+  
 void
 ShowLastPrice(char *buf, int lastPricePixel, unsigned priceColor)
 {
@@ -234,15 +236,11 @@ ShowLastPrice(char *buf, int lastPricePixel, unsigned priceColor)
   else if (MAX_SHORTER_PIXELVAL - tft.fontHeight(6) + PRICE_PAD_Y < textY) {
     textY = MAX_SHORTER_PIXELVAL - tft.fontHeight(6) + PRICE_PAD_Y;
   }
-  //  tft.setFreeFont(FF20);
-  //  tft.setTextSize(2);
   tft.setTextColor(TFT_BLACK);
-  tft.drawString(buf, - BORDER_WIDTH, textY - BORDER_WIDTH, 6);
-  tft.drawString(buf, BORDER_WIDTH, textY + BORDER_WIDTH, 6);
+  tft.drawString(buf, - BORDER_WIDTH, textY - BORDER_WIDTH, GFXFF);
+  tft.drawString(buf, BORDER_WIDTH, textY + BORDER_WIDTH, GFXFF);
   tft.setTextColor(priceColor);
-  tft.drawString(buf, 0, textY, 6);
-  //  tft.setTextSize(1);
-  //  tft.drawString(buf, 0, textY, GFXFF);
+  tft.drawString(buf, 0, textY, GFXFF);
 }
 
 void
@@ -493,7 +491,8 @@ ShowCurrentPrice()
   
   // draw last price
   itocsa(buf, PRICEBUFSIZE, lastPrice);
-  unsigned stringWidth = tft.textWidth(buf, 6) + PRICE_PAD_X;
+
+  unsigned stringWidth = tft.textWidth(buf, GFXFF) + PRICE_PAD_X;
   
   // show the current cryptocurrency price on TTGO-T-display
   // The following is a quite tentative code. To be updated.
@@ -519,6 +518,7 @@ void setup()
   tft.drawString("Connecting ...",
 		 0, MAX_SHORTER_PIXELVAL / 2 - tft.fontHeight(4) / 2, 4);
   tft.setTextSize(1);
+  tft.setFreeFont(PRICE_FONT); // Select a font for last price display
 
   Serial.print("Attempting to connect to WiFi ");
   WiFi.begin(WIFIAP, WIFIPW);
