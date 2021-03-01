@@ -98,11 +98,18 @@ itocsa(char *buf, unsigned bufsiz, unsigned n)
   }
 }
 
+//#define SHOW_BTC
+#ifdef SHOW_BTC
+#define CURRENCY_NAME "JPY/BTC"
+#define CURRENCY_PAIR "btc_jpy"
+#define PRICELINE 100000
+#else // SHOW ETH
+#define CURRENCY_NAME "JPY/ETH"
 #define CURRENCY_PAIR "eth_jpy"
+#define PRICELINE 10000
+#endif // SHOW ETH
 #define CANDLE_STICK_FOOT_WIDTH "5min"
 #define CANDLE_STICK_FOOT_WIDTH_NUM 5
-
-#define PRICELINE 10000
 
 #define STICK_WIDTH 3 // width of a candle stick
 #define HORIZONTAL_RESOLUTION 240 // width of TTGO-T-display
@@ -117,7 +124,7 @@ struct candlestick candlesticks[NUM_STICKS];
 void
 obtainSticks(unsigned n, unsigned long t)
 {
-  Serial.println("\nobtainSticks called.");
+  // Serial.println("\nobtainSticks called.");
 
   while (0 < n) {
     if (!client.connect(SERVER, 443)) {
@@ -125,7 +132,7 @@ obtainSticks(unsigned n, unsigned long t)
       return;
     }
     else {
-      Serial.println("\nConnected to server!");
+      Serial.println("\nConnected to server.");
 
       // Make another HTTP request:
       client.print("GET https://" SERVER "/" CURRENCY_PAIR "/candlestick/" CANDLE_STICK_FOOT_WIDTH "/");
@@ -162,12 +169,13 @@ obtainSticks(unsigned n, unsigned long t)
 	JsonArray ohlcv = doc["data"]["candlestick"][0]["ohlcv"];
 	unsigned numSticks = ohlcv.size();
 
-	Serial.print("Success = ");
-	Serial.println(success);
+	// Serial.print("Success = ");
+	// Serial.println(success);
 
 	Serial.print("Number of sticks = ");
 	Serial.println(numSticks);
 	if (n <= numSticks) { // enough sticks obtained
+	  Serial.println("Enough sticks.");
 	  for (unsigned i = 0 ; i < n ; i++) {
 	    // copy the last n data from JSON
 	    unsigned ohlcvIndex = i + numSticks - n;
@@ -182,6 +190,7 @@ obtainSticks(unsigned n, unsigned long t)
 	  n = 0;
 	}
 	else {
+	  Serial.println("Not enough sticks...");
 	  for (unsigned i = 0 ; i < numSticks ; i++) {
 	    // copy the all n data from JSON
 	    unsigned stickIndex = i + n - numSticks;
@@ -230,6 +239,42 @@ ShowLastPrice(char *buf, int lastPricePixel, unsigned priceColor)
   tft.drawString(buf, 0, textY, 6);
   //  tft.setTextSize(1);
   //  tft.drawString(buf, 0, textY, GFXFF);
+}
+
+void
+ShowCurrencyName(char *buf, int lastPricePixel)
+{
+  int textY;
+  if (lastPricePixel < MAX_SHORTER_PIXELVAL / 2) {
+    textY = MAX_SHORTER_PIXELVAL - tft.fontHeight(2) * 2;
+  }
+  else {
+    textY = tft.fontHeight(2);
+  }
+  tft.drawString(buf, HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 1, textY, 2);
+}
+
+// Output timestamp to serial terminal
+void
+SerialPrintTimestamp(unsigned t, unsigned tz)
+{
+  Serial.print("timestamp = ");
+  Serial.print(t);
+  t += tz;
+  Serial.print(" = ");
+  Serial.print(year(t));
+  Serial.print("/");
+  Serial.print(month(t));
+  Serial.print("/");
+  Serial.print(day(t));
+  Serial.print(" ");
+  Serial.print(hour(t));
+  Serial.print(":");
+  if (minute(t) < 10) {
+    Serial.print("0");
+  }
+  Serial.print(minute(t));
+  Serial.println(" JST");
 }
 
 void
@@ -285,7 +330,7 @@ ShowCurrentPrice()
     return;
   }
   else {
-    Serial.println("Connected to server!");
+    Serial.println("Connected to server.");
     // Make a HTTP request:
     client.println("GET https://" SERVER "/" CURRENCY_PAIR "/ticker HTTP/1.0");
     client.println("Host: " SERVER);
@@ -313,41 +358,26 @@ ShowCurrentPrice()
     }
     else {
       // Extract values
-      Serial.println(F("Response:"));
       if (doc["success"]) {
 
 	// Obtaining time stamp of ticker response and use it as the current time,
 	// instead of obtaining current time by NTP.
 	t = (unsigned long)(doc["data"]["timestamp"].as<unsigned long long>() / 1000);
 
-	Serial.print("timestamp = ");
-	Serial.print(year(t));
-	Serial.print("/");
-	Serial.print(month(t));
-	Serial.print("/");
-	Serial.print(day(t));
-	Serial.print(" ");
-	Serial.print(hour(t));
-	Serial.print(":");
-	if (minute(t) < 10) {
-	  Serial.print("0");
-	}
-	Serial.println(minute(t));
+#define TIMEZONE (9 * 60 * 60)
+  
+	SerialPrintTimestamp(t, TIMEZONE);
 	lastPrice = (unsigned)doc["data"]["last"].as<long>();
 
 	itocsa(buf, PRICEBUFSIZE, lastPrice);
-	Serial.print("last = ");
+	Serial.print("last price = ");
 	Serial.println(buf);
-	Serial.print("timestamp = ");
-	Serial.println(t);
       }
     }
     client.stop();
   }
   obtainSticks(NUM_STICKS, t);
 
-#define TIMEZONE (9 * 60 * 60)
-  
   // show the sticks here
   unsigned lowest = candlesticks[0].lowestPrice;
   unsigned highest = candlesticks[0].highestPrice;
@@ -360,18 +390,14 @@ ShowCurrentPrice()
       highest = candlesticks[i].highestPrice;
     }
   }
-  Serial.print("lowest = ");
+  Serial.print("\nlowest = ");
   Serial.println(lowest);
   Serial.print("highest = ");
   Serial.println(highest);
 
-  Serial.print("hour = ");
-  Serial.println(prevHour);
+  SerialPrintTimestamp(candlesticks[NUM_STICKS - 1].timeStamp, TIMEZONE);
 
-  Serial.print("timeStamp = ");
-  Serial.println(candlesticks[0].timeStamp);
-
-  Serial.print("place in pixel = ");
+  Serial.print("Vertical price line in pixel = ");
   Serial.println(map(candlesticks[NUM_STICKS - 1].endPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0));
 
   tft.fillScreen(TFT_BLACK);
@@ -451,11 +477,14 @@ ShowCurrentPrice()
 		 HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 1,
 		 MAX_SHORTER_PIXELVAL - tft.fontHeight(2), 2);
 
+  // show currency name
+  ShowCurrencyName(CURRENCY_NAME, lastPricePixel);
+  
   // draw last price
   itocsa(buf, PRICEBUFSIZE, lastPrice);
   unsigned stringWidth = tft.textWidth(buf, 6) + PRICE_PAD_X;
   
-  // show the current ETH price on TTGO-T-display
+  // show the current cryptocurrency price on TTGO-T-display
   // The following is a quite tentative code. To be updated.
   tft.drawFastHLine(0, lastPricePixel, PRICE_MIN_X, priceColor);
   tft.drawFastHLine(stringWidth, lastPricePixel, HORIZONTAL_RESOLUTION - stringWidth, priceColor);
@@ -469,6 +498,7 @@ void setup()
   Serial.begin(115200);
   
   Serial.println("");
+  Serial.println("CryptoCurrency candlestick chart display terminal started.");
 
   // initialize TFT screen
   tft.init(); // equivalent to tft.begin();
