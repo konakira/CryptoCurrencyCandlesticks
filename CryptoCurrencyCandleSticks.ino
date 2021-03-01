@@ -530,7 +530,7 @@ void SwitchWatcher()
     
     changeTriggered = false;
     
-    Serial.println("Change triggered.");
+    Serial.println("\nChange triggered.");
 
     // Grey out the price display
     itocsa(buf, PRICEBUFSIZE, prevPrice);
@@ -543,6 +543,7 @@ void SwitchWatcher()
 		   MAX_SHORTER_PIXELVAL / 2 - tft.fontHeight(4) / 2, 4);
 
     currencyIndex = (currencyIndex == 0) ? 1 : 0;
+    prevPrice = 0;
     ShowCurrentPrice();
   }
 }
