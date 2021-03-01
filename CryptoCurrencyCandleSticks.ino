@@ -98,18 +98,18 @@ itocsa(char *buf, unsigned bufsiz, unsigned n)
   }
 }
 
-//#define SHOW_BTC
-#ifdef SHOW_BTC
-#define CURRENCY_NAME "JPY/BTC"
-#define CURRENCY_PAIR "btc_jpy"
-#define PRICELINE 100000
-#else // SHOW ETH
-#define CURRENCY_NAME "JPY/ETH"
-#define CURRENCY_PAIR "eth_jpy"
-#define PRICELINE 5000
-#endif // SHOW ETH
 #define CANDLE_STICK_FOOT_WIDTH "5min"
 #define CANDLE_STICK_FOOT_WIDTH_NUM 5
+
+struct currency {
+  char *name, *pair;
+  unsigned priceline;
+} currencies[2] = {{"JPY/ETH", "eth_jpy", 5000}, {"JPY/BTC", "btc_jpy", 100000}};
+
+static unsigned currencyIndex = 0; // ETH by default.
+
+#define BUTTON1 35 // GPIO35
+#define BUTTON2 0 // GPIO0
 
 #define STICK_WIDTH 3 // width of a candle stick
 #define HORIZONTAL_RESOLUTION 240 // width of TTGO-T-display
@@ -135,7 +135,9 @@ obtainSticks(unsigned n, unsigned long t)
       Serial.println("\nConnected to http server.");
 
       // Make another HTTP request:
-      client.print("GET https://" SERVER "/" CURRENCY_PAIR "/candlestick/" CANDLE_STICK_FOOT_WIDTH "/");
+      client.print("GET https://" SERVER "/");
+      client.print(currencies[currencyIndex].pair);
+      client.print("/candlestick/" CANDLE_STICK_FOOT_WIDTH "/");
       {
 	char yyyymmdd[9]; // 9 for "yyyymmdd"
 	sprintf(yyyymmdd, "%04d%02d%02d", year(t), month(t), day(t));
@@ -345,7 +347,9 @@ ShowCurrentPrice()
   else {
     Serial.println("Connected to http server.");
     // Make a HTTP request:
-    client.println("GET https://" SERVER "/" CURRENCY_PAIR "/ticker HTTP/1.0");
+    client.print("GET https://" SERVER "/");
+    client.print(currencies[currencyIndex].pair);
+    client.println("/ticker HTTP/1.0");
     client.println("Host: " SERVER);
     client.println("Connection: close");
     client.println();
@@ -419,8 +423,10 @@ ShowCurrentPrice()
 
 #define TFT_DARKBLUE        0x000F      /*   0,   0, 127 */
 
-  for (unsigned i = lowest / PRICELINE + 1 ; i * PRICELINE < highest ; i++) {
-    unsigned y = map(i * PRICELINE, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
+  unsigned priceline = currencies[currencyIndex].priceline;
+
+  for (unsigned i = lowest / priceline + 1 ; i * priceline < highest ; i++) {
+    unsigned y = map(i * priceline, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
     tft.drawFastHLine(0, y, HORIZONTAL_RESOLUTION, TFT_DARKBLUE);
   }
   
@@ -493,7 +499,7 @@ ShowCurrentPrice()
 		 MAX_SHORTER_PIXELVAL - tft.fontHeight(2), 2);
 
   // show currency name
-  ShowCurrencyName(CURRENCY_NAME, lastPricePixel);
+  ShowCurrencyName(currencies[currencyIndex].name, lastPricePixel);
   
   // draw last price
   itocsa(buf, PRICEBUFSIZE, lastPrice);
@@ -507,6 +513,38 @@ ShowCurrentPrice()
   // tft.drawFastHLine(0, lastPricePixel, HORIZONTAL_RESOLUTION, priceColor);
 
   ShowLastPrice(buf, lastPricePixel, priceColor);
+}
+
+static bool changeTriggered = false;
+
+
+void buttonEventProc()
+{
+  changeTriggered = true;
+}
+
+void SwitchWatcher()
+{
+  if (changeTriggered) {
+    char buf[PRICEBUFSIZE];
+    
+    changeTriggered = false;
+    
+    Serial.println("Change triggered.");
+
+    // Grey out the price display
+    itocsa(buf, PRICEBUFSIZE, prevPrice);
+    ShowLastPrice(buf, prevPricePixel, TFT_DARKGREY); // make the price grey
+
+#define SWITCHING "Switching ..."
+    tft.setTextColor(TFT_WHITE, TFT_BLUE);
+    tft.drawString(SWITCHING,
+		   HORIZONTAL_RESOLUTION / 2 - tft.textWidth(SWITCHING, 4) / 2,
+		   MAX_SHORTER_PIXELVAL / 2 - tft.fontHeight(4) / 2, 4);
+
+    currencyIndex = (currencyIndex == 0) ? 1 : 0;
+    ShowCurrentPrice();
+  }
 }
 
 void setup()
@@ -542,7 +580,11 @@ void setup()
   ShowCurrentPrice();
 
   Serial.println("");
+
+  attachInterrupt(digitalPinToInterrupt(BUTTON1), buttonEventProc, FALLING);
+  attachInterrupt(digitalPinToInterrupt(BUTTON2), buttonEventProc, FALLING);
   
+  timer.setInterval(1000, SwitchWatcher);
   timer.setInterval(60000, ShowCurrentPrice);
 }
 
