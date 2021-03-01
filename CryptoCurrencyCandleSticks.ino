@@ -120,8 +120,10 @@ obtainSticks(unsigned n, unsigned long t)
   Serial.println("\nobtainSticks called.");
 
   while (0 < n) {
-    if (!client.connect(SERVER, 443))
+    if (!client.connect(SERVER, 443)) {
       Serial.println("\nConnection failed!");
+      return;
+    }
     else {
       Serial.println("\nConnected to server!");
 
@@ -201,7 +203,34 @@ obtainSticks(unsigned n, unsigned long t)
 #define MAX_SHORTER_PIXELVAL 134
 
 unsigned prevPrice = 0;
+int prevPricePixel;
 #define PRICEBUFSIZE 24
+
+#define PRICE_MIN_X 5
+#define PRICE_PAD_X 3
+#define PRICE_PAD_Y 10
+#define BORDER_WIDTH 2
+
+void
+ShowLastPrice(char *buf, int lastPricePixel, unsigned priceColor)
+{
+  int textY = lastPricePixel - (tft.fontHeight(6) / 2);
+  if (textY < 0) {
+    textY = 0;
+  }
+  else if (MAX_SHORTER_PIXELVAL - tft.fontHeight(6) + PRICE_PAD_Y < textY) {
+    textY = MAX_SHORTER_PIXELVAL - tft.fontHeight(6) + PRICE_PAD_Y;
+  }
+  //  tft.setFreeFont(FF20);
+  //  tft.setTextSize(2);
+  tft.setTextColor(TFT_BLACK);
+  tft.drawString(buf, - BORDER_WIDTH, textY - BORDER_WIDTH, 6);
+  tft.drawString(buf, BORDER_WIDTH, textY + BORDER_WIDTH, 6);
+  tft.setTextColor(priceColor);
+  tft.drawString(buf, 0, textY, 6);
+  //  tft.setTextSize(1);
+  //  tft.drawString(buf, 0, textY, GFXFF);
+}
 
 void
 ShowCurrentPrice()
@@ -214,10 +243,47 @@ ShowCurrentPrice()
   
   client.setCACert(bitbank_root_ca);
 
+  if (WiFi.status() != WL_CONNECTED) {
+    //WiFi.disconnect();
+
+    // Grey out the price display
+    itocsa(buf, PRICEBUFSIZE, prevPrice);
+    ShowLastPrice(buf, prevPricePixel, TFT_DARKGREY); // make the price grey
+
+#define CONNECTION_LOST "Reconnecting ..."
+    tft.setTextColor(TFT_WHITE, TFT_BLUE);
+    tft.drawString(CONNECTION_LOST,
+		   HORIZONTAL_RESOLUTION / 2 - tft.textWidth(CONNECTION_LOST, 4) / 2,
+		   MAX_SHORTER_PIXELVAL / 2 - tft.fontHeight(4) / 2, 4);
+    
+    Serial.print("WiFi connection was lost.\nAttempting to reconnect to WiFi ");
+    // WiFi.begin(WIFIAP, WIFIPW);
+    WiFi.reconnect();
+
+#define WIFI_ATTEMPT_LIMIT 45
+    unsigned i;
+    
+    // attempt to connect to Wifi network:
+    for(i = 0 ; i < WIFI_ATTEMPT_LIMIT && WiFi.status() != WL_CONNECTED ; i++) {
+      Serial.print(".");
+      // wait 1 second for re-trying
+      delay(1000);
+    }
+    if (i < WIFI_ATTEMPT_LIMIT) {
+      Serial.println(" Connected");
+    }
+    else {
+      Serial.println(" Failed to recoonect");
+      return;
+    }
+  }
+  
   Serial.println("\nStarting connection to server...");
 
-  if (!client.connect(SERVER, 443))
+  if (!client.connect(SERVER, 443)) {
     Serial.println("Connection failed!");
+    return;
+  }
   else {
     Serial.println("Connected to server!");
     // Make a HTTP request:
@@ -336,7 +402,7 @@ ShowCurrentPrice()
       stickColor = TFT_RED;
     }
 
-    lastPricePixel = map(lastPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
+    prevPricePixel = lastPricePixel = map(lastPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
     if (lastPrice < prevPrice) {
       priceColor = TFT_RED;
     }
@@ -363,11 +429,6 @@ ShowCurrentPrice()
     tft.drawFastVLine(i * 3 + 1, highestPixel, lowestPixel - highestPixel, TFT_LIGHTGREY);
     tft.fillRect(i * 3, highestPixel, 3, pixelHeight, stickColor);
   }
-
-#define PRICE_MIN_X 5
-#define PRICE_PAD_X 3
-#define PRICE_PAD_Y 10
-#define BORDER_WIDTH 2
 
   // draw highest and lowest price in the chart
   itocsa(buf, PRICEBUFSIZE, highest);
@@ -400,22 +461,7 @@ ShowCurrentPrice()
   tft.drawFastHLine(stringWidth, lastPricePixel, HORIZONTAL_RESOLUTION - stringWidth, priceColor);
   // tft.drawFastHLine(0, lastPricePixel, HORIZONTAL_RESOLUTION, priceColor);
 
-  int textY = lastPricePixel - (tft.fontHeight(6) / 2);
-  if (textY < 0) {
-    textY = 0;
-  }
-  else if (MAX_SHORTER_PIXELVAL - tft.fontHeight(6) + PRICE_PAD_Y < textY) {
-    textY = MAX_SHORTER_PIXELVAL - tft.fontHeight(6) + PRICE_PAD_Y;
-  }
-  //  tft.setFreeFont(FF20);
-  //  tft.setTextSize(2);
-  tft.setTextColor(TFT_BLACK);
-  tft.drawString(buf, - BORDER_WIDTH, textY - BORDER_WIDTH, 6);
-  tft.drawString(buf, BORDER_WIDTH, textY + BORDER_WIDTH, 6);
-  tft.setTextColor(priceColor);
-  tft.drawString(buf, 0, textY, 6);
-  //  tft.setTextSize(1);
-  //  tft.drawString(buf, 0, textY, GFXFF);
+  ShowLastPrice(buf, lastPricePixel, priceColor);
 }
 
 void setup()
