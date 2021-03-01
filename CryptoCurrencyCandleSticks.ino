@@ -472,7 +472,7 @@ void setup()
 
   // initialize TFT screen
   tft.init(); // equivalent to tft.begin();
-  tft.setRotation(1);
+  tft.setRotation(1); // set it to 1 or 3 for landscape resolution
   tft.fillScreen(TFT_BLUE);
   tft.setTextColor(TFT_WHITE);
   tft.drawString("Connecting ...",
