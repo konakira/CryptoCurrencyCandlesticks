@@ -106,7 +106,7 @@ itocsa(char *buf, unsigned bufsiz, unsigned n)
 #else // SHOW ETH
 #define CURRENCY_NAME "JPY/ETH"
 #define CURRENCY_PAIR "eth_jpy"
-#define PRICELINE 10000
+#define PRICELINE 5000
 #endif // SHOW ETH
 #define CANDLE_STICK_FOOT_WIDTH "5min"
 #define CANDLE_STICK_FOOT_WIDTH_NUM 5
@@ -284,6 +284,12 @@ SerialPrintTimestamp(unsigned t, unsigned tz)
   Serial.println(" JST");
 }
 
+#define TFT_DOWNRED 0xC000 /* 127,   0,   0 */
+#define TFT_UPGREEN 0x0600 /*   0, 128,   0 */
+// #define TFT_RED         0xF800      /* 255,   0,   0 */
+// #define TFT_GREEN       0x07E0      /*   0, 255,   0 */
+
+
 void
 ShowCurrentPrice()
 {
@@ -291,7 +297,7 @@ ShowCurrentPrice()
   char buf[PRICEBUFSIZE];
   unsigned lastPrice = 0;
   int lastPricePixel = 0;
-  unsigned stickColor = TFT_RED, priceColor = TFT_GREEN;
+  unsigned stickColor = TFT_DOWNRED, priceColor = TFT_GREEN;
   
   client.setCACert(bitbank_root_ca);
 
@@ -428,13 +434,13 @@ ShowCurrentPrice()
       lowPixel = map(candlesticks[i].endPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
       pixelHeight = map(candlesticks[i].startPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0)
 	- lowPixel;
-      stickColor = TFT_GREEN;
+      stickColor = TFT_UPGREEN;
     }
     else {
       lowPixel = map(candlesticks[i].startPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
       pixelHeight = map(candlesticks[i].endPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0)
 	- lowPixel;
-      stickColor = TFT_RED;
+      stickColor = TFT_DOWNRED;
     }
 
     prevPricePixel = lastPricePixel = map(lastPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
@@ -516,7 +522,7 @@ void setup()
   tft.fillScreen(TFT_BLUE);
   tft.setTextColor(TFT_WHITE);
   tft.drawString("Connecting ...",
-		 0, MAX_SHORTER_PIXELVAL / 2 - tft.fontHeight(4) / 2, 4);
+		 BORDER_WIDTH, MAX_SHORTER_PIXELVAL / 2 - tft.fontHeight(4) / 2, 4);
   tft.setTextSize(1);
   tft.setFreeFont(PRICE_FONT); // Select a font for last price display
 
