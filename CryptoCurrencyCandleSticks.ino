@@ -132,7 +132,7 @@ obtainSticks(unsigned n, unsigned long t)
       return;
     }
     else {
-      Serial.println("\nConnected to server.");
+      Serial.println("\nConnected to http server.");
 
       // Make another HTTP request:
       client.print("GET https://" SERVER "/" CURRENCY_PAIR "/candlestick/" CANDLE_STICK_FOOT_WIDTH "/");
@@ -146,9 +146,13 @@ obtainSticks(unsigned n, unsigned long t)
       client.println("Connection: close");
       client.println();
     
+// #define SHOW_HTTPHEADERS
+    
       while (client.connected()) {
 	String line = client.readStringUntil('\n');
+#ifdef SHOW_HTTPHEADERS
 	Serial.println(line); // echo response headers
+#endif
 	if (line == "\r") {
 	  // Serial.println("headers received");
 	  break;
@@ -173,9 +177,9 @@ obtainSticks(unsigned n, unsigned long t)
 	// Serial.println(success);
 
 	Serial.print("Number of sticks = ");
-	Serial.println(numSticks);
+	Serial.print(numSticks);
 	if (n <= numSticks) { // enough sticks obtained
-	  Serial.println("Enough sticks.");
+	  Serial.println(" (enough)");
 	  for (unsigned i = 0 ; i < n ; i++) {
 	    // copy the last n data from JSON
 	    unsigned ohlcvIndex = i + numSticks - n;
@@ -190,7 +194,7 @@ obtainSticks(unsigned n, unsigned long t)
 	  n = 0;
 	}
 	else {
-	  Serial.println("Not enough sticks...");
+	  Serial.println(" (not enough)");
 	  for (unsigned i = 0 ; i < numSticks ; i++) {
 	    // copy the all n data from JSON
 	    unsigned stickIndex = i + n - numSticks;
@@ -274,6 +278,11 @@ SerialPrintTimestamp(unsigned t, unsigned tz)
     Serial.print("0");
   }
   Serial.print(minute(t));
+  Serial.print(":");
+  if (second(t) < 10) {
+    Serial.print("0");
+  }
+  Serial.print(second(t));
   Serial.println(" JST");
 }
 
@@ -323,14 +332,14 @@ ShowCurrentPrice()
     }
   }
   
-  Serial.println("\nStarting connection to server...");
+  Serial.println("\n==== Starting connection to server...");
 
   if (!client.connect(SERVER, 443)) {
     Serial.println("Connection failed!");
     return;
   }
   else {
-    Serial.println("Connected to server.");
+    Serial.println("Connected to http server.");
     // Make a HTTP request:
     client.println("GET https://" SERVER "/" CURRENCY_PAIR "/ticker HTTP/1.0");
     client.println("Host: " SERVER);
@@ -339,7 +348,9 @@ ShowCurrentPrice()
 
     while (client.connected()) {
       String line = client.readStringUntil('\n');
+#ifdef SHOW_HTTPHEADERS
       Serial.println(line); // echo response headers
+#endif
       if (line == "\r") {
         // Serial.println("headers received");
         break;
