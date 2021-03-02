@@ -252,6 +252,7 @@ obtainLastPrice(unsigned long *t)
 
 unsigned prevPrice = 0;
 int prevPricePixel;
+unsigned long prevCandlestickTimestamp = 0;
 unsigned long prevTimestamp = 0;
 #define PRICEBUFSIZE 24
 
@@ -378,6 +379,7 @@ ShowCurrentPrice()
 
   lastPrice = obtainLastPrice(&t);
   if (day(t + TIMEZONE) != day(prevTimestamp + TIMEZONE)) {
+    prevTimestamp = t;
     todayshigh = todayslow = 0;
   }
   itocsa(buf, PRICEBUFSIZE, lastPrice);
@@ -432,7 +434,7 @@ ShowCurrentPrice()
   Serial.println(map(candlesticks[NUM_STICKS - 1].endPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0));
 
 #define ONEMINUTE_THRESHOLD 1 // per cent
-#define FIVEMINUTES_THRESHOLD 2 // per cent
+#define FIVEMINUTES_THRESHOLD 1 // per cent
 #define PADX 5
 #define PADY 5
 #define MESGSIZE 64
@@ -463,11 +465,11 @@ ShowCurrentPrice()
   }
 
   // five minutes significant price change
-  if (prevTimestamp != candlesticks[NUM_STICKS - 1].timeStamp &&
+  if (prevCandlestickTimestamp != candlesticks[NUM_STICKS - 1].timeStamp &&
 	   FIVEMINUTES_THRESHOLD <=
 	   abs((long)candlesticks[NUM_STICKS -1].startPrice - (long)candlesticks[NUM_STICKS -1].endPrice)
 	   * 100 / (long)candlesticks[NUM_STICKS - 1].startPrice) {
-    prevTimestamp = candlesticks[NUM_STICKS - 1].timeStamp;
+    prevCandlestickTimestamp = candlesticks[NUM_STICKS - 1].timeStamp;
     if (candlesticks[NUM_STICKS - 1].startPrice < candlesticks[NUM_STICKS - 1].endPrice) {
       alertbgcolor = TFT_UPGREEN;
       snprintf(mesgbuf, MESGSIZE, "%.1f%% up within",
@@ -503,6 +505,7 @@ ShowCurrentPrice()
   }
 
   if (0 < alertDuration) {
+    tft.setTextColor(TFT_WHITE);
     tft.fillScreen(alertbgcolor);
     tft.drawString(alertmesg1, PADX, PADY, 4);
     tft.drawString(alertmesg2, PADX, tft.fontHeight(4) + PADY, 4);
