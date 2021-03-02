@@ -10,31 +10,6 @@
 #include "Free_Fonts.h"
 #include "auth.h"
 
-/* root CA of bitbank.cc
-MIIEDzCCAvegAwIBAgIBADANBgkqhkiG9w0BAQUFADBoMQswCQYDVQQGEwJVUzEl
-MCMGA1UEChMcU3RhcmZpZWxkIFRlY2hub2xvZ2llcywgSW5jLjEyMDAGA1UECxMp
-U3RhcmZpZWxkIENsYXNzIDIgQ2VydGlmaWNhdGlvbiBBdXRob3JpdHkwHhcNMDQw
-NjI5MTczOTE2WhcNMzQwNjI5MTczOTE2WjBoMQswCQYDVQQGEwJVUzElMCMGA1UE
-ChMcU3RhcmZpZWxkIFRlY2hub2xvZ2llcywgSW5jLjEyMDAGA1UECxMpU3RhcmZp
-ZWxkIENsYXNzIDIgQ2VydGlmaWNhdGlvbiBBdXRob3JpdHkwggEgMA0GCSqGSIb3
-DQEBAQUAA4IBDQAwggEIAoIBAQC3Msj+6XGmBIWtDBFk385N78gDGIc/oav7PKaf
-8MOh2tTYbitTkPskpD6E8J7oX+zlJ0T1KKY/e97gKvDIr1MvnsoFAZMej2YcOadN
-+lq2cwQlZut3f+dZxkqZJRRU6ybH838Z1TBwj6+wRir/resp7defqgSHo9T5iaU0
-X9tDkYI22WY8sbi5gv2cOj4QyDvvBmVmepsZGD3/cVE8MC5fvj13c7JdBmzDI1aa
-K4UmkhynArPkPw2vCHmCuDY96pzTNbO8acr1zJ3o/WSNF4Azbl5KXZnJHoe0nRrA
-1W4TNSNe35tfPe/W93bC6j67eA0cQmdrBNj41tpvi/JEoAGrAgEDo4HFMIHCMB0G
-A1UdDgQWBBS/X7fRzt0fhvRbVazc1xDCDqmI5zCBkgYDVR0jBIGKMIGHgBS/X7fR
-zt0fhvRbVazc1xDCDqmI56FspGowaDELMAkGA1UEBhMCVVMxJTAjBgNVBAoTHFN0
-YXJmaWVsZCBUZWNobm9sb2dpZXMsIEluYy4xMjAwBgNVBAsTKVN0YXJmaWVsZCBD
-bGFzcyAyIENlcnRpZmljYXRpb24gQXV0aG9yaXR5ggEAMAwGA1UdEwQFMAMBAf8w
-DQYJKoZIhvcNAQEFBQADggEBAAWdP4id0ckaVaGsafPzWdqbAYcaT1epoXkJKtv3
-L7IezMdeatiDh6GX70k1PncGQVhiv45YuApnP+yz3SFmH8lU+nLMPUxA2IGvd56D
-eruix/U0F47ZEUD0/CwqTRV/p2JdLiXTAAsgGh1o+Re49L2L7ShZ3U0WixeDyLJl
-xy16paq8U4Zt3VekyvggQQto8PT7dL5WXXp59fkdheMtlb71cZBDzI0fmgAKhynp
-VSJYACPq4xJDKVtHCN2MQWplBqjlIapBtJUhlbl90TSrE9atvNziPTnNvT51cKEY
-WQPJIrSPnNVeKtelttQKbfi3QBFGmh95DmK/D5fs4C8fF5Q=
- */
-
 const char* bitbank_root_ca= \
      "-----BEGIN CERTIFICATE-----\n" \
      "MIIEDzCCAvegAwIBAgIBADANBgkqhkiG9w0BAQUFADBoMQswCQYDVQQGEwJVUzEl\n" \
@@ -100,8 +75,7 @@ itocsa(char *buf, unsigned bufsiz, unsigned n)
   }
 }
 
-#define CANDLE_STICK_FOOT_WIDTH "5min"
-#define CANDLE_STICK_FOOT_WIDTH_NUM 5
+#define CANDLESTICK_WIDTH "5min"
 
 struct currency {
   char *name, *pair;
@@ -122,6 +96,8 @@ struct candlestick {
 
 struct candlestick candlesticks[NUM_STICKS];
 
+static unsigned todayshigh = 0, todayslow = 0;
+
 void
 obtainSticks(unsigned n, unsigned long t)
 {
@@ -138,7 +114,7 @@ obtainSticks(unsigned n, unsigned long t)
       // Make another HTTP request:
       client.print("GET https://" SERVER "/");
       client.print(currencies[currencyIndex].pair);
-      client.print("/candlestick/" CANDLE_STICK_FOOT_WIDTH "/");
+      client.print("/candlestick/" CANDLESTICK_WIDTH "/");
       {
 	char yyyymmdd[9]; // 9 for "yyyymmdd"
 	sprintf(yyyymmdd, "%04d%02d%02d", year(t), month(t), day(t));
@@ -215,6 +191,64 @@ obtainSticks(unsigned n, unsigned long t)
     }
   }
 }
+
+unsigned
+obtainLastPrice(unsigned long *t)
+{
+  unsigned retval = 0;
+  if (!client.connect(SERVER, 443)) {
+    Serial.println("Connection failed!");
+  }
+  else {
+    Serial.println("Connected to http server.");
+    // Make a HTTP request:
+    client.print("GET https://" SERVER "/");
+    client.print(currencies[currencyIndex].pair);
+    client.println("/ticker HTTP/1.0");
+    client.println("Host: " SERVER);
+    client.println("Connection: close");
+    client.println();
+
+    while (client.connected()) {
+      String line = client.readStringUntil('\n');
+#ifdef SHOW_HTTPHEADERS
+      Serial.println(line); // echo response headers
+#endif
+      if (line == "\r") {
+        // Serial.println("headers received");
+        break;
+      }
+    }
+
+    // Allocate the JSON document
+    // Use arduinojson.org/v6/assistant to compute the capacity.
+    StaticJsonDocument<256> doc;
+
+    // Parse JSON object
+    DeserializationError error = deserializeJson(doc, client);
+    if (error) {
+      Serial.print(F("deserializeJson() failed: "));
+      Serial.println(error.f_str());
+    }
+    else {
+      // Extract values
+      if (doc["success"]) {
+
+	// Obtaining time stamp of ticker response and use it as the current time,
+	// instead of obtaining current time by NTP.
+	*t = (unsigned long)(doc["data"]["timestamp"].as<unsigned long long>() / 1000);
+
+#define TIMEZONE (9 * 60 * 60)
+  
+	SerialPrintTimestamp(*t, TIMEZONE);
+	retval = (unsigned)doc["data"]["last"].as<long>();
+      }
+    }
+    client.stop();
+  }
+  return retval;
+}
+
 
 unsigned prevPrice = 0;
 int prevPricePixel;
@@ -342,62 +376,13 @@ ShowCurrentPrice()
   
   Serial.println("\n==== Starting connection to server...");
 
-  if (!client.connect(SERVER, 443)) {
-    Serial.println("Connection failed!");
-    return;
+  lastPrice = obtainLastPrice(&t);
+  itocsa(buf, PRICEBUFSIZE, lastPrice);
+  Serial.print("last price = ");
+  Serial.println(buf);
+  if (0 < lastPrice) {
+    obtainSticks(NUM_STICKS, t);
   }
-  else {
-    Serial.println("Connected to http server.");
-    // Make a HTTP request:
-    client.print("GET https://" SERVER "/");
-    client.print(currencies[currencyIndex].pair);
-    client.println("/ticker HTTP/1.0");
-    client.println("Host: " SERVER);
-    client.println("Connection: close");
-    client.println();
-
-    while (client.connected()) {
-      String line = client.readStringUntil('\n');
-#ifdef SHOW_HTTPHEADERS
-      Serial.println(line); // echo response headers
-#endif
-      if (line == "\r") {
-        // Serial.println("headers received");
-        break;
-      }
-    }
-
-    // Allocate the JSON document
-    // Use arduinojson.org/v6/assistant to compute the capacity.
-    StaticJsonDocument<256> doc;
-
-    // Parse JSON object
-    DeserializationError error = deserializeJson(doc, client);
-    if (error) {
-      Serial.print(F("deserializeJson() failed: "));
-      Serial.println(error.f_str());
-    }
-    else {
-      // Extract values
-      if (doc["success"]) {
-
-	// Obtaining time stamp of ticker response and use it as the current time,
-	// instead of obtaining current time by NTP.
-	t = (unsigned long)(doc["data"]["timestamp"].as<unsigned long long>() / 1000);
-
-#define TIMEZONE (9 * 60 * 60)
-  
-	SerialPrintTimestamp(t, TIMEZONE);
-	lastPrice = (unsigned)doc["data"]["last"].as<long>();
-
-	itocsa(buf, PRICEBUFSIZE, lastPrice);
-	Serial.print("last price = ");
-	Serial.println(buf);
-      }
-    }
-    client.stop();
-  }
-  obtainSticks(NUM_STICKS, t);
 
   // show the sticks here
   unsigned lowest = candlesticks[0].lowestPrice;
