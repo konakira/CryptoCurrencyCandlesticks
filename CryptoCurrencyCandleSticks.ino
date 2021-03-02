@@ -529,6 +529,9 @@ ShowCurrentPrice()
       tft.drawFastHLine(0, y, HORIZONTAL_RESOLUTION, TFT_DARKBLUE);
     }
 
+    // get the position to draw last price
+    prevPricePixel = lastPricePixel = map(lastPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
+
     // draw candlesticks
     for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
       // draw vertical hour line
@@ -598,7 +601,6 @@ ShowCurrentPrice()
     ShowCurrencyName(currencies[currencyIndex].name, lastPricePixel);
   
     // draw last price
-    prevPricePixel = lastPricePixel = map(lastPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
     if (lastPrice < prevPrice) {
       priceColor = TFT_RED;
     }
