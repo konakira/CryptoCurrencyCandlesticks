@@ -377,6 +377,9 @@ ShowCurrentPrice()
   Serial.println("\n==== Starting connection to server...");
 
   lastPrice = obtainLastPrice(&t);
+  if (day(t + TIMEZONE) != day(prevTimestamp + TIMEZONE)) {
+    todayshigh = todayslow = 0;
+  }
   itocsa(buf, PRICEBUFSIZE, lastPrice);
   Serial.print("last price = ");
   Serial.println(buf);
@@ -384,9 +387,9 @@ ShowCurrentPrice()
   if (0 < lastPrice) {
     obtainSticks(NUM_STICKS, t);
     if (todayshigh == 0) {
-      unsigned today = day(t);
+      unsigned today = day(t + TIMEZONE);
       for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
-	if (day(candlesticks[i].timeStamp) == today) {
+	if (day(candlesticks[i].timeStamp + TIMEZONE) == today) {
 	  if (todayshigh == 0) {
 	    todayshigh = candlesticks[i].highestPrice;
 	    todayslow = candlesticks[i].lowestPrice;
@@ -433,44 +436,76 @@ ShowCurrentPrice()
 #define PADX 5
 #define PADY 5
 #define MESGSIZE 64
-  char alertmesg[MESGSIZE] = "";
-  unsigned alertfgcolor, alertbgcolor;
-  if (0 < prevPrice && ONEMINUTE_THRESHOLD <= abs((long)lastPrice - (long)prevPrice) * 100 / (long)prevPrice) {
-    if (prevPrice < lastPrice) {
-      snprintf(alertmesg, MESGSIZE, "%.1f%% up within",
-	       (float)(lastPrice - prevPrice) * 100.0 / (float)prevPrice);
-      tft.fillScreen(TFT_UPGREEN);
-    }
-    else {
-      snprintf(alertmesg, MESGSIZE, "%.1f%% down within",
-	       (float)(prevPrice - lastPrice) * 100.0 / (float)prevPrice);
-      tft.fillScreen(TFT_DOWNRED);
-    }
-    tft.drawString("a minute.", PADX, tft.fontHeight(4) + PADY, 4);
+  char mesgbuf[MESGSIZE];
+  char *alertmesg1;
+  char *alertmesg2;
+  unsigned alertbgcolor;
+
+  // check events...
+  // last event has the highest priority
+
+  // today's high or low
+  if (lastPrice < todayslow) {
+    todayslow = lastPrice;
+
+    alertmesg1 = "Updated";
+    alertmesg2 = "today's low";
+    alertbgcolor = TFT_DOWNRED;
     alertDuration = ALERT_DURATION;
   }
-  else if (prevTimestamp != candlesticks[NUM_STICKS - 1].timeStamp &&
+  else if (todayshigh < lastPrice) {
+    todayshigh = lastPrice;
+
+    alertmesg1 = "Updated";
+    alertmesg2 = "today's high";
+    alertbgcolor = TFT_UPGREEN;
+    alertDuration = ALERT_DURATION;
+  }
+
+  // five minutes significant price change
+  if (prevTimestamp != candlesticks[NUM_STICKS - 1].timeStamp &&
 	   FIVEMINUTES_THRESHOLD <=
 	   abs((long)candlesticks[NUM_STICKS -1].startPrice - (long)candlesticks[NUM_STICKS -1].endPrice)
 	   * 100 / (long)candlesticks[NUM_STICKS - 1].startPrice) {
     prevTimestamp = candlesticks[NUM_STICKS - 1].timeStamp;
     if (candlesticks[NUM_STICKS - 1].startPrice < candlesticks[NUM_STICKS - 1].endPrice) {
-      tft.fillScreen(TFT_UPGREEN);
-      snprintf(alertmesg, MESGSIZE, "%.1f%% up within",
+      alertbgcolor = TFT_UPGREEN;
+      snprintf(mesgbuf, MESGSIZE, "%.1f%% up within",
 	       (float)(candlesticks[NUM_STICKS -1 ].endPrice - candlesticks[NUM_STICKS - 1].startPrice) * 100.0
 	       / (float)candlesticks[NUM_STICKS - 1].startPrice);
     }
     else {
-      tft.fillScreen(TFT_DOWNRED);
-      snprintf(alertmesg, MESGSIZE, "%.1f%% down within",
+      alertbgcolor = TFT_DOWNRED;
+      snprintf(mesgbuf, MESGSIZE, "%.1f%% down within",
 	       (float)(candlesticks[NUM_STICKS -1 ].startPrice - candlesticks[NUM_STICKS - 1].endPrice) * 100.0
 	       / (float)candlesticks[NUM_STICKS - 1].startPrice); 
     }
-    tft.drawString("5 minutes.", PADX, tft.fontHeight(4) + PADY, 4);
+    alertmesg1 = mesgbuf;
+    alertmesg2 = "5 minutes.";
     alertDuration = ALERT_DURATION;
   }
+
+  // in a minute significant price change
+  if (0 < prevPrice && ONEMINUTE_THRESHOLD <= abs((long)lastPrice - (long)prevPrice) * 100 / (long)prevPrice) {
+    if (prevPrice < lastPrice) {
+      snprintf(mesgbuf, MESGSIZE, "%.1f%% up within",
+	       (float)(lastPrice - prevPrice) * 100.0 / (float)prevPrice);
+      alertbgcolor = TFT_UPGREEN;
+    }
+    else {
+      snprintf(mesgbuf, MESGSIZE, "%.1f%% down within",
+	       (float)(prevPrice - lastPrice) * 100.0 / (float)prevPrice);
+      alertbgcolor = TFT_DOWNRED;
+    }
+    alertmesg1 = mesgbuf;
+    alertmesg2 = "a minute.";
+    alertDuration = ALERT_DURATION;
+  }
+
   if (0 < alertDuration) {
-    tft.drawString(alertmesg, PADX, PADY, 4);
+    tft.fillScreen(alertbgcolor);
+    tft.drawString(alertmesg1, PADX, PADY, 4);
+    tft.drawString(alertmesg2, PADX, tft.fontHeight(4) + PADY, 4);
     itocsa(buf, PRICEBUFSIZE, lastPrice);
     tft.drawString(buf,
 		   HORIZONTAL_RESOLUTION / 2 - tft.textWidth(buf, GFXFF) / 2,
