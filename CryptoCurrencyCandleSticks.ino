@@ -380,13 +380,31 @@ ShowCurrentPrice()
   itocsa(buf, PRICEBUFSIZE, lastPrice);
   Serial.print("last price = ");
   Serial.println(buf);
+  // obtaining today's low and today's high
   if (0 < lastPrice) {
     obtainSticks(NUM_STICKS, t);
+    if (todayshigh == 0) {
+      unsigned today = day(t);
+      for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
+	if (day(candlesticks[i].timeStamp) == today) {
+	  if (todayshigh == 0) {
+	    todayshigh = candlesticks[i].highestPrice;
+	    todayslow = candlesticks[i].lowestPrice;
+	  }
+	  else if (todayshigh < candlesticks[i].highestPrice) {
+	    todayshigh = candlesticks[i].highestPrice;
+	  }
+	  else if (candlesticks[i].lowestPrice < todayslow) {
+	    todayslow = candlesticks[i].lowestPrice;
+	  }
+	}
+      }
+    }
   }
 
   // show the sticks here
-  unsigned lowest = candlesticks[0].lowestPrice;
-  unsigned highest = candlesticks[0].highestPrice;
+  unsigned lowest = candlesticks[0].lowestPrice; // chart's low
+  unsigned highest = candlesticks[0].highestPrice; // chart's high
   unsigned prevHour = hour(candlesticks[0].timeStamp + TIMEZONE);
   for (unsigned i = 1 ; i < NUM_STICKS ; i++) {
     if (candlesticks[i].lowestPrice < lowest) {
@@ -396,9 +414,13 @@ ShowCurrentPrice()
       highest = candlesticks[i].highestPrice;
     }
   }
-  Serial.print("\nlowest = ");
-  Serial.println(lowest);
-  Serial.print("highest = ");
+  Serial.print("\ntoday = ");
+  Serial.print(todayslow);
+  Serial.print(" - ");
+  Serial.println(todayshigh);
+  Serial.print("chart = ");
+  Serial.print(lowest);
+  Serial.print(" - ");
   Serial.println(highest);
 
   SerialPrintTimestamp(candlesticks[NUM_STICKS - 1].timeStamp, TIMEZONE);
