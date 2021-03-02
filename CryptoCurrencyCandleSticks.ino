@@ -96,8 +96,6 @@ struct candlestick {
 
 struct candlestick candlesticks[NUM_STICKS];
 
-static unsigned todayshigh = 0, todayslow = 0;
-
 void
 obtainSticks(unsigned n, unsigned long t)
 {
@@ -250,10 +248,15 @@ obtainLastPrice(unsigned long *t)
 }
 
 
-unsigned prevPrice = 0;
-int prevPricePixel;
-unsigned long prevCandlestickTimestamp = 0;
-unsigned long prevTimestamp = 0;
+#define ALERT_DURATION 20
+static unsigned alertDuration = 0;
+static unsigned todayshigh = 0, todayslow = 0;
+static unsigned prevPrice = 0;
+static int prevPricePixel;
+static unsigned long prevCandlestickTimestamp = 0;
+static unsigned long prevTimestamp = 0;
+static bool changeTriggered = false;
+
 #define PRICEBUFSIZE 24
 
 #define PRICE_MIN_X 5
@@ -325,9 +328,6 @@ SerialPrintTimestamp(unsigned t, unsigned tz)
 #define TFT_UPGREEN 0x0600 /*   0, 128,   0 */
 // #define TFT_RED         0xF800      /* 255,   0,   0 */
 // #define TFT_GREEN       0x07E0      /*   0, 255,   0 */
-
-#define ALERT_DURATION 20
-static unsigned alertDuration = 0;
 
 void
 ShowCurrentPrice()
@@ -618,9 +618,6 @@ ShowCurrentPrice()
   }
 }
 
-static bool changeTriggered = false;
-
-
 void buttonEventProc()
 {
   changeTriggered = true;
@@ -631,7 +628,10 @@ void SecProc()
   if (changeTriggered) {
     char buf[PRICEBUFSIZE];
     
+    // clear global variables..
     changeTriggered = false;
+    prevCandlestickTimestamp = prevTimestamp = 0;
+    todayshigh = todayslow = 0;
     alertDuration = 0;
     
     Serial.println("\nChange triggered.");
@@ -647,7 +647,8 @@ void SecProc()
 		   MAX_SHORTER_PIXELVAL / 2 - tft.fontHeight(4) / 2, 4);
 
     currencyIndex = (currencyIndex == 0) ? 1 : 0;
-    prevPrice = 0;
+    prevPrice = prevPricePixel = 0;
+    
     ShowCurrentPrice();
   }
   if (0 < alertDuration) {
