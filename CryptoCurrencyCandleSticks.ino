@@ -576,6 +576,12 @@ ShowCurrentPrice()
       tft.fillRect(i * 3, highestPixel, 3, pixelHeight, stickColor);
     }
 
+    // draw price horizontal line
+    unsigned stringWidth = tft.textWidth(buf, GFXFF) + PRICE_PAD_X;
+    tft.drawFastHLine(0, lastPricePixel, PRICE_MIN_X, priceColor);
+    tft.drawFastHLine(stringWidth, lastPricePixel, HORIZONTAL_RESOLUTION - stringWidth, priceColor);
+    // tft.drawFastHLine(0, lastPricePixel, HORIZONTAL_RESOLUTION, priceColor);
+
     // draw highest and lowest price in the chart
     itocsa(buf, PRICEBUFSIZE, highest);
     tft.setTextColor(TFT_BLACK);
@@ -608,13 +614,7 @@ ShowCurrentPrice()
 
     itocsa(buf, PRICEBUFSIZE, lastPrice);
 
-    unsigned stringWidth = tft.textWidth(buf, GFXFF) + PRICE_PAD_X;
-  
     // show the current cryptocurrency price on TTGO-T-display
-    // The following is a quite tentative code. To be updated.
-    tft.drawFastHLine(0, lastPricePixel, PRICE_MIN_X, priceColor);
-    tft.drawFastHLine(stringWidth, lastPricePixel, HORIZONTAL_RESOLUTION - stringWidth, priceColor);
-    // tft.drawFastHLine(0, lastPricePixel, HORIZONTAL_RESOLUTION, priceColor);
 
     ShowLastPrice(buf, lastPricePixel, priceColor);
   }
