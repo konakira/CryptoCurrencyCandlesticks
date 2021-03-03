@@ -329,6 +329,52 @@ SerialPrintTimestamp(unsigned t, unsigned tz)
 // #define TFT_RED         0xF800      /* 255,   0,   0 */
 // #define TFT_GREEN       0x07E0      /*   0, 255,   0 */
 
+#define ONEMINUTE_THRESHOLD 1 // per cent
+#define FIVEMINUTES_THRESHOLD 1 // per cent
+#define PADX 5
+#define PADY 5
+#define MESGSIZE 64
+#define ALERT_BLACK_DURATION 200 // msec
+
+class alert {
+public:
+  void setBackColor(unsigned color) {
+    alertbgcolor = color;
+  }
+  char mesgbuf[MESGSIZE];
+  void setMesg1(char *s) {
+    alertmesg1 = s;
+  }
+  void setMesg2(char *s) {
+    alertmesg2 = s;
+  }
+  void setLastPrice(unsigned p) {
+    lastPrice = p;
+  }
+  void showAlert() {
+    char buf[PRICEBUFSIZE];
+
+    tft.setTextColor(TFT_WHITE);
+    tft.fillScreen(alertbgcolor);
+    tft.drawString(alertmesg1, PADX, PADY, 4);
+    tft.drawString(alertmesg2, PADX, tft.fontHeight(4) + PADY, 4);
+    itocsa(buf, PRICEBUFSIZE, lastPrice);
+    tft.drawString(buf,
+		   HORIZONTAL_RESOLUTION / 2 - tft.textWidth(buf, GFXFF) / 2,
+		   MAX_SHORTER_PIXELVAL - tft.fontHeight(GFXFF), GFXFF);
+  }
+  void flashAlert() {
+    tft.invertDisplay(false);
+    delay(ALERT_BLACK_DURATION);
+    tft.invertDisplay(true);
+  }
+private:
+  char *alertmesg1;
+  char *alertmesg2;
+  unsigned alertbgcolor = TFT_DOWNRED; // alert color by default
+  unsigned lastPrice;
+} alert1;
+
 void
 ShowCurrentPrice()
 {
@@ -433,16 +479,6 @@ ShowCurrentPrice()
   Serial.print("Vertical price line in pixel = ");
   Serial.println(map(candlesticks[NUM_STICKS - 1].endPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0));
 
-#define ONEMINUTE_THRESHOLD 1 // per cent
-#define FIVEMINUTES_THRESHOLD 1 // per cent
-#define PADX 5
-#define PADY 5
-#define MESGSIZE 64
-  char mesgbuf[MESGSIZE];
-  char *alertmesg1;
-  char *alertmesg2;
-  unsigned alertbgcolor = TFT_DOWNRED; // alert color by default
-
   // check events...
   // last event has the highest priority
 
@@ -450,16 +486,17 @@ ShowCurrentPrice()
   if (lastPrice < todayslow) {
     todayslow = lastPrice;
 
-    alertmesg1 = "Updated";
-    alertmesg2 = "today's low";
+    alert1.setMesg1("Updated");
+    alert1.setMesg2("today's low");
+    alert1.setBackColor(TFT_DOWNRED);
     alertDuration = ALERT_DURATION;
   }
   else if (todayshigh < lastPrice) {
     todayshigh = lastPrice;
 
-    alertmesg1 = "Updated";
-    alertmesg2 = "today's high";
-    alertbgcolor = TFT_UPGREEN;
+    alert1.setMesg1("Updated");
+    alert1.setMesg2("today's high");
+    alert1.setBackColor(TFT_UPGREEN);
     alertDuration = ALERT_DURATION;
   }
 
@@ -470,46 +507,42 @@ ShowCurrentPrice()
 	   * 100 / (long)candlesticks[NUM_STICKS - 1].startPrice) {
     prevCandlestickTimestamp = candlesticks[NUM_STICKS - 1].timeStamp;
     if (candlesticks[NUM_STICKS - 1].startPrice < candlesticks[NUM_STICKS - 1].endPrice) {
-      alertbgcolor = TFT_UPGREEN;
-      snprintf(mesgbuf, MESGSIZE, "%.1f%% up within",
+      alert1.setBackColor(TFT_UPGREEN);
+      snprintf(alert1.mesgbuf, MESGSIZE, "%.1f%% up within",
 	       (float)(candlesticks[NUM_STICKS -1 ].endPrice - candlesticks[NUM_STICKS - 1].startPrice) * 100.0
 	       / (float)candlesticks[NUM_STICKS - 1].startPrice);
     }
     else {
-      snprintf(mesgbuf, MESGSIZE, "%.1f%% down within",
+      alert1.setBackColor(TFT_DOWNRED);
+      snprintf(alert1.mesgbuf, MESGSIZE, "%.1f%% down within",
 	       (float)(candlesticks[NUM_STICKS -1 ].startPrice - candlesticks[NUM_STICKS - 1].endPrice) * 100.0
 	       / (float)candlesticks[NUM_STICKS - 1].startPrice); 
     }
-    alertmesg1 = mesgbuf;
-    alertmesg2 = "5 minutes.";
+    alert1.setMesg1(alert1.mesgbuf);
+    alert1.setMesg2("5 minutes.");
     alertDuration = ALERT_DURATION;
   }
 
   // in a minute significant price change
   if (0 < prevPrice && ONEMINUTE_THRESHOLD <= abs((long)lastPrice - (long)prevPrice) * 100 / (long)prevPrice) {
     if (prevPrice < lastPrice) {
-      snprintf(mesgbuf, MESGSIZE, "%.1f%% up within",
+      snprintf(alert1.mesgbuf, MESGSIZE, "%.1f%% up within",
 	       (float)(lastPrice - prevPrice) * 100.0 / (float)prevPrice);
-      alertbgcolor = TFT_UPGREEN;
+      alert1.setBackColor(TFT_UPGREEN);
     }
     else {
-      snprintf(mesgbuf, MESGSIZE, "%.1f%% down within",
+      snprintf(alert1.mesgbuf, MESGSIZE, "%.1f%% down within",
 	       (float)(prevPrice - lastPrice) * 100.0 / (float)prevPrice);
+      alert1.setBackColor(TFT_DOWNRED);
     }
-    alertmesg1 = mesgbuf;
-    alertmesg2 = "a minute.";
+    alert1.setMesg1(alert1.mesgbuf);
+    alert1.setMesg2("a minute.");
     alertDuration = ALERT_DURATION;
   }
 
   if (0 < alertDuration) {
-    tft.setTextColor(TFT_WHITE);
-    tft.fillScreen(alertbgcolor);
-    tft.drawString(alertmesg1, PADX, PADY, 4);
-    tft.drawString(alertmesg2, PADX, tft.fontHeight(4) + PADY, 4);
-    itocsa(buf, PRICEBUFSIZE, lastPrice);
-    tft.drawString(buf,
-		   HORIZONTAL_RESOLUTION / 2 - tft.textWidth(buf, GFXFF) / 2,
-		   MAX_SHORTER_PIXELVAL - tft.fontHeight(GFXFF), GFXFF);
+    alert1.setLastPrice(lastPrice);
+    alert1.showAlert();
     prevPrice = lastPrice;
   }
   else {
@@ -650,7 +683,7 @@ void SecProc()
     ShowCurrentPrice();
   }
   if (0 < alertDuration) {
-    tft.invertDisplay(alertDuration % 2);
+    alert1.flashAlert();
     alertDuration--;
     if (alertDuration == 0) {
       ShowCurrentPrice();
