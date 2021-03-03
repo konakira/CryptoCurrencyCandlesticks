@@ -352,8 +352,6 @@ public:
     lastPrice = p;
   }
   void showAlert() {
-    char buf[PRICEBUFSIZE];
-
     tft.setTextColor(TFT_WHITE);
     tft.fillScreen(alertbgcolor);
     tft.drawString(alertmesg1, PADX, PADY, 4);
@@ -364,11 +362,20 @@ public:
 		   MAX_SHORTER_PIXELVAL - tft.fontHeight(GFXFF), GFXFF);
   }
   void flashAlert() {
-    tft.invertDisplay(false);
+    tft.setTextColor(TFT_BLACK);
+    tft.drawString(buf,
+		   HORIZONTAL_RESOLUTION / 2 - tft.textWidth(buf, GFXFF) / 2,
+		   MAX_SHORTER_PIXELVAL - tft.fontHeight(GFXFF), GFXFF);
+    // tft.invertDisplay(false);
     delay(ALERT_BLACK_DURATION);
-    tft.invertDisplay(true);
+    // tft.invertDisplay(true);
+    tft.setTextColor(TFT_WHITE);
+    tft.drawString(buf,
+		   HORIZONTAL_RESOLUTION / 2 - tft.textWidth(buf, GFXFF) / 2,
+		   MAX_SHORTER_PIXELVAL - tft.fontHeight(GFXFF), GFXFF);
   }
 private:
+  char buf[PRICEBUFSIZE];
   char *alertmesg1;
   char *alertmesg2;
   unsigned alertbgcolor = TFT_DOWNRED; // alert color by default
