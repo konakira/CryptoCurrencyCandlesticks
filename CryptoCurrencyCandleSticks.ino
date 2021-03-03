@@ -383,7 +383,11 @@ ShowCurrentPrice()
   unsigned lastPrice = 0;
   int lastPricePixel = 0;
   unsigned stickColor = TFT_DOWNRED, priceColor = TFT_GREEN;
-  
+
+  if (0 < alertDuration) {
+    return;
+  }
+
   client.setCACert(bitbank_root_ca);
 
   if (WiFi.status() != WL_CONNECTED) {
