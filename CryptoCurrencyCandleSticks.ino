@@ -441,7 +441,7 @@ ShowCurrentPrice()
   char mesgbuf[MESGSIZE];
   char *alertmesg1;
   char *alertmesg2;
-  unsigned alertbgcolor;
+  unsigned alertbgcolor = TFT_DOWNRED; // alert color by default
 
   // check events...
   // last event has the highest priority
@@ -452,7 +452,6 @@ ShowCurrentPrice()
 
     alertmesg1 = "Updated";
     alertmesg2 = "today's low";
-    alertbgcolor = TFT_DOWNRED;
     alertDuration = ALERT_DURATION;
   }
   else if (todayshigh < lastPrice) {
@@ -477,7 +476,6 @@ ShowCurrentPrice()
 	       / (float)candlesticks[NUM_STICKS - 1].startPrice);
     }
     else {
-      alertbgcolor = TFT_DOWNRED;
       snprintf(mesgbuf, MESGSIZE, "%.1f%% down within",
 	       (float)(candlesticks[NUM_STICKS -1 ].startPrice - candlesticks[NUM_STICKS - 1].endPrice) * 100.0
 	       / (float)candlesticks[NUM_STICKS - 1].startPrice); 
@@ -497,7 +495,6 @@ ShowCurrentPrice()
     else {
       snprintf(mesgbuf, MESGSIZE, "%.1f%% down within",
 	       (float)(prevPrice - lastPrice) * 100.0 / (float)prevPrice);
-      alertbgcolor = TFT_DOWNRED;
     }
     alertmesg1 = mesgbuf;
     alertmesg2 = "a minute.";
@@ -524,6 +521,10 @@ ShowCurrentPrice()
     unsigned priceline = currencies[currencyIndex].priceline;
 
     // draw horizontal price lines
+    if (lastPrice < prevPrice) {
+      priceColor = TFT_RED;
+    }
+    prevPrice = lastPrice;
     for (unsigned i = lowest / priceline + 1 ; i * priceline < highest ; i++) {
       unsigned y = map(i * priceline, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
       tft.drawFastHLine(0, y, HORIZONTAL_RESOLUTION, TFT_DARKBLUE);
@@ -607,11 +608,6 @@ ShowCurrentPrice()
     ShowCurrencyName(currencies[currencyIndex].name, lastPricePixel);
   
     // draw last price
-    if (lastPrice < prevPrice) {
-      priceColor = TFT_RED;
-    }
-    prevPrice = lastPrice;
-
     itocsa(buf, PRICEBUFSIZE, lastPrice);
 
     // show the current cryptocurrency price on TTGO-T-display
