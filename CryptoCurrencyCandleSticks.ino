@@ -504,6 +504,14 @@ ShowCurrentPrice()
     alertDuration = ALERT_DURATION;
   }
 
+  // not event but set today's high and low properly
+  if (todayshigh < candlesticks[NUM_STICKS - 1].highestPrice) {
+    todayshigh = candlesticks[NUM_STICKS - 1].highestPrice;
+  }
+  if (candlesticks[NUM_STICKS - 1].lowestPrice < todayslow) {
+    todayslow = candlesticks[NUM_STICKS - 1].lowestPrice;
+  }
+
   // five minutes significant price change
   if (prevCandlestickTimestamp != candlesticks[NUM_STICKS - 1].timeStamp &&
 	   FIVEMINUTES_THRESHOLD <=
