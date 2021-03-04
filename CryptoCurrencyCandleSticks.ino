@@ -190,6 +190,34 @@ obtainSticks(unsigned n, unsigned long t)
   }
 }
 
+// Output timestamp to serial terminal
+void
+SerialPrintTimestamp(unsigned t, unsigned tz)
+{
+  Serial.print("timestamp = ");
+  Serial.print(t);
+  t += tz;
+  Serial.print(" = ");
+  Serial.print(year(t));
+  Serial.print("/");
+  Serial.print(month(t));
+  Serial.print("/");
+  Serial.print(day(t));
+  Serial.print(" ");
+  Serial.print(hour(t));
+  Serial.print(":");
+  if (minute(t) < 10) {
+    Serial.print("0");
+  }
+  Serial.print(minute(t));
+  Serial.print(":");
+  if (second(t) < 10) {
+    Serial.print("0");
+  }
+  Serial.print(second(t));
+  Serial.println(" JST");
+}
+
 unsigned
 obtainLastPrice(unsigned long *t)
 {
@@ -294,34 +322,6 @@ ShowCurrencyName(char *buf, int lastPricePixel)
     textY = tft.fontHeight(2);
   }
   tft.drawString(buf, HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 1, textY, 2);
-}
-
-// Output timestamp to serial terminal
-void
-SerialPrintTimestamp(unsigned t, unsigned tz)
-{
-  Serial.print("timestamp = ");
-  Serial.print(t);
-  t += tz;
-  Serial.print(" = ");
-  Serial.print(year(t));
-  Serial.print("/");
-  Serial.print(month(t));
-  Serial.print("/");
-  Serial.print(day(t));
-  Serial.print(" ");
-  Serial.print(hour(t));
-  Serial.print(":");
-  if (minute(t) < 10) {
-    Serial.print("0");
-  }
-  Serial.print(minute(t));
-  Serial.print(":");
-  if (second(t) < 10) {
-    Serial.print("0");
-  }
-  Serial.print(second(t));
-  Serial.println(" JST");
 }
 
 #define TFT_DOWNRED 0xC000 /* 127,   0,   0 */
@@ -728,6 +728,7 @@ void setup()
   tft.setRotation(1); // set it to 1 or 3 for landscape resolution
   tft.fillScreen(TFT_BLUE);
   tft.setTextColor(TFT_WHITE);
+  tft.setTextPadding(PADX); // seems no effect by this line.
   tft.drawString("Connecting ...",
 		 PADX, MAX_SHORTER_PIXELVAL / 2 - tft.fontHeight(4) / 2, 4);
   tft.setTextSize(1);
