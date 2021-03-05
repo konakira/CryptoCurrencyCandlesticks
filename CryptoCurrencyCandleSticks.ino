@@ -389,6 +389,7 @@ alertProc()
     Alert.flashAlert();
     alertDuration--;
     if (alertDuration == 0) {
+      timer.deleteTimer(Alert.alertId);
       ShowCurrentPrice();
     }
   }
