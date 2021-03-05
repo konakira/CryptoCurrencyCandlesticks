@@ -37,7 +37,6 @@ const char* bitbank_root_ca= \
      "-----END CERTIFICATE-----\n";
 
 #define HORIZONTAL_RESOLUTION 240 // width of TTGO-T-display
-#define MAX_SHORTER_PIXELVAL 134
 
 TFT_eSPI tft = TFT_eSPI();  // Invoke library, pins defined in User_Setup.h
 
@@ -301,8 +300,8 @@ ShowLastPrice(char *buf, int lastPricePixel, unsigned priceColor)
   if (textY < 0) {
     textY = 0;
   }
-  else if (MAX_SHORTER_PIXELVAL - tft.fontHeight(6) + PRICE_PAD_Y < textY) {
-    textY = MAX_SHORTER_PIXELVAL - tft.fontHeight(6) + PRICE_PAD_Y;
+  else if (tft.height() - tft.fontHeight(6) + PRICE_PAD_Y < textY) {
+    textY = tft.height() - tft.fontHeight(6) + PRICE_PAD_Y;
   }
   tft.setTextColor(TFT_BLACK);
   tft.drawString(buf, - BORDER_WIDTH, textY - BORDER_WIDTH, GFXFF);
@@ -315,13 +314,13 @@ void
 ShowCurrencyName(char *buf, int lastPricePixel)
 {
   int textY;
-  if (lastPricePixel < MAX_SHORTER_PIXELVAL / 2) {
-    textY = MAX_SHORTER_PIXELVAL - tft.fontHeight(2) * 2;
+  if (lastPricePixel < tft.height() / 2) {
+    textY = tft.height() - tft.fontHeight(2) * 2;
   }
   else {
     textY = tft.fontHeight(2);
   }
-  tft.drawString(buf, HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 1, textY, 2);
+  tft.drawString(buf, tft.width() - tft.textWidth(buf, 2) - 1, textY, 2);
 }
 
 #define TFT_DOWNRED 0xC000 /* 127,   0,   0 */
@@ -371,8 +370,8 @@ private:
     tft.drawString(alertmesg1, PADX, PADY, 4);
     tft.drawString(alertmesg2, PADX, tft.fontHeight(4) + PADY, 4);
     tft.drawString(buf,
-		   HORIZONTAL_RESOLUTION / 2 - tft.textWidth(buf, GFXFF) / 2,
-		   MAX_SHORTER_PIXELVAL - tft.fontHeight(GFXFF), GFXFF);
+		   tft.width() / 2 - tft.textWidth(buf, GFXFF) / 2,
+		   tft.height() - tft.fontHeight(GFXFF), GFXFF);
   }
   char buf[PRICEBUFSIZE];
   char *alertmesg1;
@@ -420,8 +419,8 @@ ShowCurrentPrice()
 #define CONNECTION_LOST "Reconnecting ..."
     tft.setTextColor(TFT_WHITE, TFT_BLUE);
     tft.drawString(CONNECTION_LOST,
-		   HORIZONTAL_RESOLUTION / 2 - tft.textWidth(CONNECTION_LOST, 4) / 2,
-		   MAX_SHORTER_PIXELVAL / 2 - tft.fontHeight(4) / 2, 4);
+		   tft.width() / 2 - tft.textWidth(CONNECTION_LOST, 4) / 2,
+		   tft.height() / 2 - tft.fontHeight(4) / 2, 4);
     
     Serial.print("WiFi connection was lost.\nAttempting to reconnect to WiFi ");
     // WiFi.begin(WIFIAP, WIFIPW);
@@ -501,7 +500,7 @@ ShowCurrentPrice()
   SerialPrintTimestamp(candlesticks[NUM_STICKS - 1].timeStamp, TIMEZONE);
 
   Serial.print("Vertical price line in pixel = ");
-  Serial.println(map(candlesticks[NUM_STICKS - 1].endPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0));
+  Serial.println(map(candlesticks[NUM_STICKS - 1].endPrice, lowest, highest, tft.height(), 0));
 
   // check events...
   // last event has the highest priority
@@ -592,12 +591,12 @@ ShowCurrentPrice()
     }
     prevPrice = lastPrice;
     for (unsigned i = lowest / priceline + 1 ; i * priceline < highest ; i++) {
-      unsigned y = map(i * priceline, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
-      tft.drawFastHLine(0, y, HORIZONTAL_RESOLUTION, TFT_DARKBLUE);
+      unsigned y = map(i * priceline, lowest, highest, tft.height(), 0);
+      tft.drawFastHLine(0, y, tft.width(), TFT_DARKBLUE);
     }
 
     // get the position to draw last price
-    prevPricePixel = lastPricePixel = map(lastPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
+    prevPricePixel = lastPricePixel = map(lastPrice, lowest, highest, tft.height(), 0);
 
     // draw candlesticks
     for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
@@ -605,14 +604,14 @@ ShowCurrentPrice()
       unsigned curHour = hour(candlesticks[i].timeStamp + TIMEZONE);
       if (curHour != prevHour) {
 	prevHour = curHour;
-	tft.drawFastVLine(i * 3 + 1, 0, MAX_SHORTER_PIXELVAL, TFT_DARKBLUE);
+	tft.drawFastVLine(i * 3 + 1, 0, tft.height(), TFT_DARKBLUE);
 	if (curHour % 3 == 0) {
-	  if (i * 3 - 5 < HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 10) {
+	  if (i * 3 - 5 < tft.width() - tft.textWidth(buf, 2) - 10) {
 	    // if we have enough space around vertical line, draw the time
 	    unsigned textY = 0;
 
-	    if (lastPricePixel < MAX_SHORTER_PIXELVAL / 2) {
-	      textY = MAX_SHORTER_PIXELVAL - tft.fontHeight(2);
+	    if (lastPricePixel < tft.height() / 2) {
+	      textY = tft.height() - tft.fontHeight(2);
 	    }
 	    tft.setTextColor(TFT_WHITE);
 	    tft.drawNumber(curHour, i * 3 - 5, textY, 2);
@@ -623,18 +622,18 @@ ShowCurrentPrice()
       // draw candlesticks
       int lowestPixel, highestPixel, lowPixel, pixelHeight;
     
-      lowestPixel = map(candlesticks[i].lowestPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
-      highestPixel = map(candlesticks[i].highestPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
+      lowestPixel = map(candlesticks[i].lowestPrice, lowest, highest, tft.height(), 0);
+      highestPixel = map(candlesticks[i].highestPrice, lowest, highest, tft.height(), 0);
 
       if (candlesticks[i].startPrice < candlesticks[i].endPrice) {
-	lowPixel = map(candlesticks[i].endPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
-	pixelHeight = map(candlesticks[i].startPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0)
+	lowPixel = map(candlesticks[i].endPrice, lowest, highest, tft.height(), 0);
+	pixelHeight = map(candlesticks[i].startPrice, lowest, highest, tft.height(), 0)
 	  - lowPixel;
 	stickColor = TFT_UPGREEN;
       }
       else {
-	lowPixel = map(candlesticks[i].startPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0);
-	pixelHeight = map(candlesticks[i].endPrice, lowest, highest, MAX_SHORTER_PIXELVAL, 0)
+	lowPixel = map(candlesticks[i].startPrice, lowest, highest, tft.height(), 0);
+	pixelHeight = map(candlesticks[i].endPrice, lowest, highest, tft.height(), 0)
 	  - lowPixel;
 	stickColor = TFT_DOWNRED;
       }
@@ -646,29 +645,29 @@ ShowCurrentPrice()
     // draw price horizontal line
     unsigned stringWidth = tft.textWidth(buf, GFXFF) + PRICE_PAD_X;
     tft.drawFastHLine(0, lastPricePixel, PRICE_MIN_X, priceColor);
-    tft.drawFastHLine(stringWidth, lastPricePixel, HORIZONTAL_RESOLUTION - stringWidth, priceColor);
-    // tft.drawFastHLine(0, lastPricePixel, HORIZONTAL_RESOLUTION, priceColor);
+    tft.drawFastHLine(stringWidth, lastPricePixel, tft.width() - stringWidth, priceColor);
+    // tft.drawFastHLine(0, lastPricePixel, tft.width(), priceColor);
 
     // draw highest and lowest price in the chart
     itocsa(buf, PRICEBUFSIZE, highest);
     tft.setTextColor(TFT_BLACK);
-    tft.drawString(buf, HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 2, -1, 2);
-    tft.drawString(buf, HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2), 1, 2);
+    tft.drawString(buf, tft.width() - tft.textWidth(buf, 2) - 2, -1, 2);
+    tft.drawString(buf, tft.width() - tft.textWidth(buf, 2), 1, 2);
     tft.setTextColor(TFT_WHITE);
-    tft.drawString(buf, HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 1, 0, 2);
+    tft.drawString(buf, tft.width() - tft.textWidth(buf, 2) - 1, 0, 2);
 
     itocsa(buf, PRICEBUFSIZE, lowest);
     tft.setTextColor(TFT_BLACK);
     tft.drawString(buf,
-		   HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 2,
-		   MAX_SHORTER_PIXELVAL - tft.fontHeight(2) - 1, 2);
+		   tft.width() - tft.textWidth(buf, 2) - 2,
+		   tft.height() - tft.fontHeight(2) - 1, 2);
     tft.drawString(buf,
-		   HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2),
-		   MAX_SHORTER_PIXELVAL - tft.fontHeight(2) + 1, 2);
+		   tft.width() - tft.textWidth(buf, 2),
+		   tft.height() - tft.fontHeight(2) + 1, 2);
     tft.setTextColor(TFT_WHITE);
     tft.drawString(buf,
-		   HORIZONTAL_RESOLUTION - tft.textWidth(buf, 2) - 1,
-		   MAX_SHORTER_PIXELVAL - tft.fontHeight(2), 2);
+		   tft.width() - tft.textWidth(buf, 2) - 1,
+		   tft.height() - tft.fontHeight(2), 2);
 
     // show currency name
     ShowCurrencyName(currencies[currencyIndex].name, lastPricePixel);
@@ -707,8 +706,8 @@ void SecProc()
 #define SWITCHING "Switching ..."
     tft.setTextColor(TFT_WHITE, TFT_BLUE);
     tft.drawString(SWITCHING,
-		   HORIZONTAL_RESOLUTION / 2 - tft.textWidth(SWITCHING, 4) / 2,
-		   MAX_SHORTER_PIXELVAL / 2 - tft.fontHeight(4) / 2, 4);
+		   tft.width() / 2 - tft.textWidth(SWITCHING, 4) / 2,
+		   tft.height() / 2 - tft.fontHeight(4) / 2, 4);
 
     currencyIndex = (currencyIndex == 0) ? 1 : 0;
     prevPrice = prevPricePixel = 0;
@@ -731,7 +730,7 @@ void setup()
   tft.setTextColor(TFT_WHITE);
   tft.setTextPadding(PADX); // seems no effect by this line.
   tft.drawString("Connecting ...",
-		 PADX, MAX_SHORTER_PIXELVAL / 2 - tft.fontHeight(4) / 2, 4);
+		 PADX, tft.height() / 2 - tft.fontHeight(4) / 2, 4);
   tft.setTextSize(1);
   tft.setFreeFont(PRICE_FONT); // Select a font for last price display
 
