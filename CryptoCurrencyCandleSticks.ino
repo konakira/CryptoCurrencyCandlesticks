@@ -79,7 +79,7 @@ itocsa(char *buf, unsigned bufsiz, unsigned n)
 struct currency {
   char *name, *pair;
   unsigned priceline;
-} currencies[2] = {{"JPY/ETH", "eth_jpy", 5000}, {"JPY/BTC", "btc_jpy", 100000}};
+} currencies[2] = {{"ETH", "eth_jpy", 5000}, {"BTC", "btc_jpy", 100000}};
 
 static unsigned currencyIndex = 0; // ETH by default.
 
@@ -218,7 +218,7 @@ SerialPrintTimestamp(unsigned t, unsigned tz)
 }
 
 unsigned
-obtainLastPrice(unsigned long *t)
+obtainLastPrice(unsigned currency, unsigned long *t)
 {
   unsigned retval = 0;
   if (!client.connect(SERVER, 443)) {
@@ -228,7 +228,7 @@ obtainLastPrice(unsigned long *t)
     Serial.println("Connected to http server.");
     // Make a HTTP request:
     client.print("GET https://" SERVER "/");
-    client.print(currencies[currencyIndex].pair);
+    client.print(currencies[currency].pair);
     client.println("/ticker HTTP/1.0");
     client.println("Host: " SERVER);
     client.println("Connection: close");
@@ -279,6 +279,7 @@ obtainLastPrice(unsigned long *t)
 static unsigned alertDuration = 0;
 static unsigned todayshigh = 0, todayslow = 0;
 static unsigned prevPrice = 0;
+static float prevPriceAgainstOtherCurrency = 0.0;
 static int prevPricePixel;
 static unsigned long prevCandlestickTimestamp = 0;
 static unsigned long prevTimestamp = 0;
@@ -293,21 +294,61 @@ static bool changeTriggered = false;
 
 #define PRICE_FONT FF44 // 20, 24, (36,) 44 are candidates for a price font
   
+#define OTHER_CURRENCY_BASE_VALUE_FONT 4
+#define TFT_DOWNRED 0xC000 /* 127,   0,   0 */
+#define TFT_UPGREEN 0x0600 /*   0, 128,   0 */
+// #define TFT_RED         0xF800      /* 255,   0,   0 */
+// #define TFT_GREEN       0x07E0      /*   0, 255,   0 */
+
+#define ONEMINUTE_THRESHOLD 1 // per cent
+#define FIVEMINUTES_THRESHOLD 1 // per cent
+#define PADX 5
+#define PADY 5
+#define MESGSIZE 64
+#define ALERT_BLACK_DURATION 200 // msec
+
 void
 ShowLastPrice(char *buf, int lastPricePixel, unsigned priceColor)
 {
-  int textY = lastPricePixel - (tft.fontHeight(6) / 2);
+  int textY = lastPricePixel - (tft.fontHeight(GFXFF) / 2);
   if (textY < 0) {
     textY = 0;
   }
-  else if (tft.height() - tft.fontHeight(6) + PRICE_PAD_Y < textY) {
-    textY = tft.height() - tft.fontHeight(6) + PRICE_PAD_Y;
+  else if (tft.height() - tft.fontHeight(GFXFF) + PRICE_PAD_Y < textY) {
+    textY = tft.height() - tft.fontHeight(GFXFF) + PRICE_PAD_Y;
   }
   tft.setTextColor(TFT_BLACK);
   tft.drawString(buf, - BORDER_WIDTH, textY - BORDER_WIDTH, GFXFF);
   tft.drawString(buf, BORDER_WIDTH, textY + BORDER_WIDTH, GFXFF);
   tft.setTextColor(priceColor);
   tft.drawString(buf, 0, textY, GFXFF);
+}
+
+void
+ShowPriceAgainstOtherCurrency(char *buf, int lastPricePixel, unsigned priceColor)
+{
+  int textY = lastPricePixel - (tft.fontHeight(GFXFF) / 2);
+  if (textY < 0) {
+    textY = 0;
+  }
+  else if (tft.height() - tft.fontHeight(GFXFF) + PRICE_PAD_Y < textY) {
+    textY = tft.height() - tft.fontHeight(GFXFF) + PRICE_PAD_Y;
+  }
+  if (lastPricePixel < tft.height() / 2) {
+    textY += tft.fontHeight(GFXFF);
+  }
+  else {
+    textY -= tft.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT);
+  }
+  tft.setTextColor(TFT_BLACK);
+  tft.drawString(buf, - BORDER_WIDTH, textY - BORDER_WIDTH, OTHER_CURRENCY_BASE_VALUE_FONT);
+  tft.drawString(buf, BORDER_WIDTH, textY + BORDER_WIDTH, OTHER_CURRENCY_BASE_VALUE_FONT);
+  tft.setTextColor(priceColor);
+  tft.drawString(buf, PADX, textY, OTHER_CURRENCY_BASE_VALUE_FONT);
+#define BASE_DIFF 4
+  tft.drawString(currencies[currencyIndex == 0 ? 1 : 0].name,
+		 PADX + tft.textWidth(buf, OTHER_CURRENCY_BASE_VALUE_FONT),
+		 textY + tft.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT) - tft.fontHeight(2) - BASE_DIFF, 2);
 }
 
 void
@@ -322,18 +363,6 @@ ShowCurrencyName(char *buf, int lastPricePixel)
   }
   tft.drawString(buf, tft.width() - tft.textWidth(buf, 2) - 1, textY, 2);
 }
-
-#define TFT_DOWNRED 0xC000 /* 127,   0,   0 */
-#define TFT_UPGREEN 0x0600 /*   0, 128,   0 */
-// #define TFT_RED         0xF800      /* 255,   0,   0 */
-// #define TFT_GREEN       0x07E0      /*   0, 255,   0 */
-
-#define ONEMINUTE_THRESHOLD 1 // per cent
-#define FIVEMINUTES_THRESHOLD 1 // per cent
-#define PADX 5
-#define PADY 5
-#define MESGSIZE 64
-#define ALERT_BLACK_DURATION 200 // msec
 
 class alert {
 public:
@@ -398,8 +427,9 @@ void
 ShowCurrentPrice()
 {
   unsigned long t; // for current time
-  char buf[PRICEBUFSIZE];
-  unsigned lastPrice = 0;
+  char buf[PRICEBUFSIZE], buf2[PRICEBUFSIZE];
+  unsigned lastPrice = 0, lastPriceOfOtherCurrency = 0;
+  float lastPriceAgainstOtherCurrency = 0.0;
   int lastPricePixel = 0;
   unsigned stickColor = TFT_DOWNRED, priceColor = TFT_GREEN;
 
@@ -415,6 +445,8 @@ ShowCurrentPrice()
     // Grey out the price display
     itocsa(buf, PRICEBUFSIZE, prevPrice);
     ShowLastPrice(buf, prevPricePixel, TFT_DARKGREY); // make the price grey
+    snprintf(buf2, PRICEBUFSIZE, "%.5f", lastPriceAgainstOtherCurrency);
+    ShowPriceAgainstOtherCurrency(buf2, prevPricePixel, TFT_DARKGREY);
 
 #define CONNECTION_LOST "Reconnecting ..."
     tft.setTextColor(TFT_WHITE, TFT_BLUE);
@@ -446,7 +478,9 @@ ShowCurrentPrice()
   
   Serial.println("\n==== Starting connection to server...");
 
-  lastPrice = obtainLastPrice(&t);
+  lastPriceOfOtherCurrency = obtainLastPrice(currencyIndex == 0 ? 1 : 0, &t);
+  lastPrice = obtainLastPrice(currencyIndex, &t);
+  lastPriceAgainstOtherCurrency = (float)lastPrice / (float)lastPriceOfOtherCurrency;
   if (day(t + TIMEZONE) != day(prevTimestamp + TIMEZONE)) {
     prevTimestamp = t;
     todayshigh = todayslow = 0;
@@ -678,6 +712,10 @@ ShowCurrentPrice()
     // show the current cryptocurrency price on TTGO-T-display
 
     ShowLastPrice(buf, lastPricePixel, priceColor);
+    snprintf(buf2, PRICEBUFSIZE, "%.5f", lastPriceAgainstOtherCurrency);
+    ShowPriceAgainstOtherCurrency(buf2, prevPricePixel,
+				  lastPriceAgainstOtherCurrency < prevPriceAgainstOtherCurrency ? TFT_RED: TFT_GREEN);
+    prevPriceAgainstOtherCurrency = lastPriceAgainstOtherCurrency;
   }
 }
 
@@ -689,7 +727,7 @@ void buttonEventProc()
 void SecProc()
 {
   if (changeTriggered) {
-    char buf[PRICEBUFSIZE];
+    char buf[PRICEBUFSIZE], buf2[PRICEBUFSIZE];
     
     // clear global variables..
     changeTriggered = false;
@@ -702,6 +740,8 @@ void SecProc()
     // Grey out the price display
     itocsa(buf, PRICEBUFSIZE, prevPrice);
     ShowLastPrice(buf, prevPricePixel, TFT_DARKGREY); // make the price grey
+    snprintf(buf2, PRICEBUFSIZE, "%.5f", prevPriceAgainstOtherCurrency);
+    ShowPriceAgainstOtherCurrency(buf2, prevPricePixel, TFT_DARKGREY);
 
 #define SWITCHING "Switching ..."
     tft.setTextColor(TFT_WHITE, TFT_BLUE);
@@ -710,7 +750,7 @@ void SecProc()
 		   tft.height() / 2 - tft.fontHeight(4) / 2, 4);
 
     currencyIndex = (currencyIndex == 0) ? 1 : 0;
-    prevPrice = prevPricePixel = 0;
+    prevPriceAgainstOtherCurrency = prevPrice = prevPricePixel = 0;
     
     ShowCurrentPrice();
   }
