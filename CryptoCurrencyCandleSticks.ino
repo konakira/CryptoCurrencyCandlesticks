@@ -750,7 +750,8 @@ void SecProc()
 		   tft.height() / 2 - tft.fontHeight(4) / 2, 4);
 
     currencyIndex = (currencyIndex == 0) ? 1 : 0;
-    prevPriceAgainstOtherCurrency = prevPrice = prevPricePixel = 0;
+    prevPrice = prevPricePixel = 0;
+    prevPriceAgainstOtherCurrency = 0.0;
     
     ShowCurrentPrice();
   }
