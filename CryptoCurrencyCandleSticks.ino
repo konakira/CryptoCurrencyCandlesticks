@@ -238,11 +238,9 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
       highest = candlesticks[i].highestPrice;
     }
   }
-  unsigned today = day(candlesticks[NUM_STICKS - 1].timeStamp + TIMEZONE);
-  if (today != day(prevTimeStamp + TIMEZONE)) {
-    todayshigh = 0;
-  }
   if (todayshigh == 0) {
+    unsigned today = day(candlesticks[NUM_STICKS - 1].timeStamp + TIMEZONE);
+    
     for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
       if (day(candlesticks[i].timeStamp + TIMEZONE) == today) {
 	if (todayshigh == 0) {
@@ -343,12 +341,16 @@ Currency::obtainLastPrice(unsigned long *t)
     else {
       // Extract values
       if (doc["success"]) {
+	unsigned long timestamp;
 
 	// Obtaining time stamp of ticker response and use it as the current time,
 	// instead of obtaining current time by NTP.
-	prevTimeStamp = (unsigned long)(doc["data"]["timestamp"].as<unsigned long long>() / 1000);
-
-	SerialPrintTimestamp(prevTimeStamp, TIMEZONE);
+	timestamp = (unsigned long)(doc["data"]["timestamp"].as<unsigned long long>() / 1000);
+	if (day(timestamp + TIMEZONE) != day(prevTimeStamp + TIMEZONE)) {
+	  todayshigh = 0;
+	}
+	prevTimeStamp = timestamp;
+	SerialPrintTimestamp(timestamp, TIMEZONE);
 	prevPrice = price;
 	price = (unsigned)doc["data"]["last"].as<long>();
       }
