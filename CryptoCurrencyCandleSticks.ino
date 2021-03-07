@@ -57,20 +57,25 @@ itocsa(char *buf, unsigned bufsiz, unsigned n)
   unsigned len, i;
 
   for (i = 1 ; i < n ; i *= 1000);
-  i /= 1000;
-  
-  snprintf(p, bufsiz, "%d", n / i);
-  n = n % i;
-  len = strlen(p);
-  p += len;
-  bufsiz -= len;
-  i /= 1000;
-  while (0 < i) {
-    snprintf(p, bufsiz, ",%03d", n / i);
-    n = n % i;
-    p += 4;
-    bufsiz -= 4;
+
+  if (1 < i) {
     i /= 1000;
+    snprintf(p, bufsiz, "%d", n / i);
+    n = n % i;
+    len = strlen(p);
+    p += len;
+    bufsiz -= len;
+    i /= 1000;
+    while (0 < i) {
+      snprintf(p, bufsiz, ",%03d", n / i);
+      n = n % i;
+      p += 4;
+      bufsiz -= 4;
+      i /= 1000;
+    }
+  }
+  else {
+    snprintf(p, bufsiz, "%d", n);
   }
 }
 
@@ -95,10 +100,10 @@ public:
   unsigned todayslow = 0;
   unsigned prevPrice = 0, price = 0;
   unsigned lowest, highest;
+  unsigned long prevTimeStamp;
   float relative = 0.0, prevRelative = 0.0;
   float highestRelative, lowestRelative;
   int pricePixel;
-  unsigned prevTimeStamp = 0;
 
   Currency (char *na, char *pa, unsigned pl) {
     name = na;
@@ -109,6 +114,7 @@ public:
   unsigned obtainLastPrice(unsigned long *t);
   void obtainSticks(unsigned n, unsigned long t);
   void obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp);
+  void calcRelative();
   void ShowChart();
   void ShowCurrentPrice();
   void SwitchCurrency();
@@ -116,6 +122,8 @@ public:
 } currencies[2] = {{"ETH", "eth_jpy", 5000}, {"BTC", "btc_jpy", 100000}};
 
 static unsigned cIndex = 0; // ETH by default.
+
+#define TIMEZONE (9 * 60 * 60)
 
 void
 Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
@@ -219,6 +227,45 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
       }
     }
   }
+  // obtaining chart's high and low
+  lowest = candlesticks[0].lowestPrice; // chart's low
+  highest = candlesticks[0].highestPrice; // chart's high
+  for (unsigned i = 1 ; i < NUM_STICKS ; i++) {
+    if (candlesticks[i].lowestPrice < lowest) {
+      lowest = candlesticks[i].lowestPrice;
+    }
+    if (highest < candlesticks[i].highestPrice) {
+      highest = candlesticks[i].highestPrice;
+    }
+  }
+  unsigned today = day(candlesticks[NUM_STICKS - 1].timeStamp + TIMEZONE);
+  if (today != day(prevTimeStamp + TIMEZONE)) {
+    todayshigh = 0;
+  }
+  if (todayshigh == 0) {
+    for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
+      if (day(candlesticks[i].timeStamp + TIMEZONE) == today) {
+	if (todayshigh == 0) {
+	  todayshigh = candlesticks[i].highestPrice;
+	  todayslow = candlesticks[i].lowestPrice;
+	}
+	else if (todayshigh < candlesticks[i].highestPrice) {
+	  todayshigh = candlesticks[i].highestPrice;
+	}
+	else if (candlesticks[i].lowestPrice < todayslow) {
+	  todayslow = candlesticks[i].lowestPrice;
+	}
+      }
+    }
+  }
+  Serial.print("\ntoday = ");
+  Serial.print(todayslow);
+  Serial.print(" - ");
+  Serial.println(todayshigh);
+  Serial.print("chart = ");
+  Serial.print(lowest);
+  Serial.print(" - ");
+  Serial.println(highest);
 }
 
 void
@@ -259,7 +306,6 @@ SerialPrintTimestamp(unsigned t, unsigned tz)
 unsigned
 Currency::obtainLastPrice(unsigned long *t)
 {
-  unsigned long timestamp = 0;
   if (!client.connect(SERVER, 443)) {
     Serial.println("Connection failed!");
   }
@@ -300,11 +346,9 @@ Currency::obtainLastPrice(unsigned long *t)
 
 	// Obtaining time stamp of ticker response and use it as the current time,
 	// instead of obtaining current time by NTP.
-	timestamp = (unsigned long)(doc["data"]["timestamp"].as<unsigned long long>() / 1000);
+	prevTimeStamp = (unsigned long)(doc["data"]["timestamp"].as<unsigned long long>() / 1000);
 
-#define TIMEZONE (9 * 60 * 60)
-  
-	SerialPrintTimestamp(timestamp, TIMEZONE);
+	SerialPrintTimestamp(prevTimeStamp, TIMEZONE);
 	prevPrice = price;
 	price = (unsigned)doc["data"]["last"].as<long>();
       }
@@ -312,9 +356,8 @@ Currency::obtainLastPrice(unsigned long *t)
     client.stop();
   }
   if (t) {
-    *t = timestamp;
+    *t = prevTimeStamp;
   }
-  // prevTimeStamp = timestamp;
   return price;
 }
 
@@ -322,7 +365,6 @@ Currency::obtainLastPrice(unsigned long *t)
 #define ALERT_DURATION (40 /* sec */ * (1000 / ALERT_INTERVAL)) // times ALERT_INTERVAL
 static unsigned alertDuration = 0;
 static unsigned long prevCandlestickTimestamp = 0;
-static unsigned long prevTimestamp = 0;
 static bool changeTriggered = false;
 
 #define PRICEBUFSIZE 24
@@ -584,6 +626,29 @@ Currency::ShowChart()
 }
 
 void
+Currency::calcRelative()
+{
+  unsigned another = (cIndex == 0 ? 1 : 0);
+
+  highestRelative = lowestRelative = 
+    candlesticks[0].relative = (float)candlesticks[0].endPrice / (float)currencies[another].candlesticks[0].endPrice;
+  for (unsigned i = 1 ; i < NUM_STICKS ; i++) {
+    float re = 0.0;
+    if (0 < currencies[another].candlesticks[i].endPrice) {
+      re = (float)candlesticks[i].endPrice / (float)currencies[another].candlesticks[i].endPrice;
+    }
+
+    candlesticks[i].relative = re;
+    if (re < lowestRelative) {
+      lowestRelative = re;
+    }
+    if (highestRelative < re) {
+      highestRelative = re;
+    }
+  }
+}
+
+void
 Currency::ShowCurrentPrice()
 {
   unsigned long t; // for current time
@@ -647,59 +712,8 @@ Currency::ShowCurrentPrice()
     // get data for another currency
     unsigned another = (cIndex == 0 ? 1 : 0);
     currencies[another].obtainSticks(NUM_STICKS, t, candlesticks[NUM_STICKS - 1].timeStamp);
-
-    highestRelative = lowestRelative = 
-      candlesticks[0].relative = (float)candlesticks[0].endPrice / (float)currencies[another].candlesticks[0].endPrice;
-    for (unsigned i = 1 ; i < NUM_STICKS ; i++) {
-      float re = (float)candlesticks[i].endPrice / (float)currencies[another].candlesticks[i].endPrice;
-
-      candlesticks[i].relative = re;
-      if (re < lowestRelative) {
-	lowestRelative = re;
-      }
-      if (highestRelative < re) {
-	highestRelative = re;
-      }
-    }
-    
-    if (todayshigh == 0) {
-      unsigned today = day(t + TIMEZONE);
-      for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
-	if (day(candlesticks[i].timeStamp + TIMEZONE) == today) {
-	  if (todayshigh == 0) {
-	    todayshigh = candlesticks[i].highestPrice;
-	    todayslow = candlesticks[i].lowestPrice;
-	  }
-	  else if (todayshigh < candlesticks[i].highestPrice) {
-	    todayshigh = candlesticks[i].highestPrice;
-	  }
-	  else if (candlesticks[i].lowestPrice < todayslow) {
-	    todayslow = candlesticks[i].lowestPrice;
-	  }
-	}
-      }
-    }
+    calcRelative();
   }
-
-  // obtaining chart's high and low
-  lowest = candlesticks[0].lowestPrice; // chart's low
-  highest = candlesticks[0].highestPrice; // chart's high
-  for (unsigned i = 1 ; i < NUM_STICKS ; i++) {
-    if (candlesticks[i].lowestPrice < lowest) {
-      lowest = candlesticks[i].lowestPrice;
-    }
-    if (highest < candlesticks[i].highestPrice) {
-      highest = candlesticks[i].highestPrice;
-    }
-  }
-  Serial.print("\ntoday = ");
-  Serial.print(todayslow);
-  Serial.print(" - ");
-  Serial.println(todayshigh);
-  Serial.print("chart = ");
-  Serial.print(lowest);
-  Serial.print(" - ");
-  Serial.println(highest);
 
   SerialPrintTimestamp(candlesticks[NUM_STICKS - 1].timeStamp, TIMEZONE);
 
@@ -809,16 +823,15 @@ void Currency::SwitchCurrency()
   char buf[PRICEBUFSIZE], buf2[PRICEBUFSIZE];
   
   // clear global variables..
-  prevCandlestickTimestamp = prevTimestamp = 0;
-  todayshigh = todayslow = 0;
+  prevCandlestickTimestamp = 0;
   alertDuration = 0;
     
   Serial.println("\nChange triggered.");
 
   // Grey out the price display
-  itocsa(buf, PRICEBUFSIZE, prevPrice);
+  itocsa(buf, PRICEBUFSIZE, price);
   ShowLastPrice(buf, pricePixel, TFT_DARKGREY); // make the price grey
-  snprintf(buf2, PRICEBUFSIZE, "%.5f", prevRelative);
+  snprintf(buf2, PRICEBUFSIZE, "%.5f", relative);
   ShowRelativePrice(buf2, pricePixel, TFT_DARKGREY);
 
 #define SWITCHING "Switching ..."
@@ -827,11 +840,13 @@ void Currency::SwitchCurrency()
 		 tft.width() / 2 - tft.textWidth(SWITCHING, 4) / 2,
 		 tft.height() / 2 - tft.fontHeight(4) / 2, 4);
   
-  prevPrice = pricePixel = 0;
-  prevRelative = 0.0;
   cIndex = (cIndex == 0) ? 1 : 0;
-  
-  currencies[cIndex].ShowCurrentPrice();
+
+  currencies[cIndex].relative = 1 / relative;
+  currencies[cIndex].calcRelative();
+
+  // currencies[cIndex].ShowCurrentPrice();
+  currencies[cIndex].ShowChart();
 }
 
 void SecProc()
