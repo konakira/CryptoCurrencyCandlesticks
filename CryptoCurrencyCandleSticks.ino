@@ -95,6 +95,7 @@ public:
   unsigned todayslow = 0;
   unsigned prevPrice = 0;
   float prevPriceAgainstOtherCurrency = 0.0;
+  float highestRelative, lowestRelative;
   int prevPricePixel;
   unsigned prevTimeStamp = 0;
 
@@ -106,6 +107,7 @@ public:
 
   unsigned obtainLastPrice(unsigned long *t);
   void obtainSticks(unsigned n, unsigned long t);
+  void obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp);
   void ShowCurrentPrice();
   void SwitchCurrency();
   
@@ -114,7 +116,7 @@ public:
 static unsigned cIndex = 0; // ETH by default.
 
 void
-Currency::obtainSticks(unsigned n, unsigned long t)
+Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
 {
   // Serial.println("\nobtainSticks called.");
 
@@ -162,6 +164,7 @@ Currency::obtainSticks(unsigned n, unsigned long t)
 	Serial.println(error.f_str());
       }
       else {
+	unsigned lastIndex;
 	int success = doc["success"]; // 1
 
 	JsonArray ohlcv = doc["data"]["candlestick"][0]["ohlcv"];
@@ -170,6 +173,16 @@ Currency::obtainSticks(unsigned n, unsigned long t)
 	// Serial.print("Success = ");
 	// Serial.println(success);
 
+	if (0 < lastTimeStamp) { // skip newer candlestick if any.
+	  for (int i = numSticks - 1 ; 0 < i ; i--) {
+	    // this may just remove one data at most
+	    if ((unsigned long)(ohlcv[i][5].as<unsigned long long>() / 1000) <= lastTimeStamp) {
+	      numSticks = i + 1;
+	      break;
+	    }
+	  }
+	}
+	
 	Serial.print("Number of sticks = ");
 	Serial.print(numSticks);
 	if (n <= numSticks) { // enough sticks obtained
@@ -183,7 +196,6 @@ Currency::obtainSticks(unsigned n, unsigned long t)
 	    candlesticks[i].endPrice = ohlcv[ohlcvIndex][3].as<unsigned>();
 	    candlesticks[i].timeStamp =
 	      (unsigned long)(ohlcv[ohlcvIndex][5].as<unsigned long long>() / 1000);
-	    unsigned long aho = (unsigned long)ohlcv[ohlcvIndex][5].as<unsigned long long>();
 	  }
 	  n = 0;
 	}
@@ -206,6 +218,13 @@ Currency::obtainSticks(unsigned n, unsigned long t)
     }
   }
 }
+
+void
+Currency::obtainSticks(unsigned n, unsigned long t)
+{
+  obtainSticks(n, t, 0);
+}
+
 
 // Output timestamp to serial terminal
 void
@@ -436,6 +455,15 @@ private:
   unsigned lastPrice;
 } Alert;
 
+int
+floatmap(float val, float l, float h, int a, int b)
+{
+  double res = (val - l) / (h - l);
+  int height = b - a;
+
+  return (int)(res * height) + a;
+}
+
 void
 Currency::ShowCurrentPrice()
 {
@@ -503,8 +531,25 @@ Currency::ShowCurrentPrice()
   Serial.println(buf);
   // obtaining today's low and today's high
   if (0 < lastPrice) {
-    /// caution!!!! 
     obtainSticks(NUM_STICKS, t);
+    // get data for another currency
+    unsigned another = (cIndex == 0 ? 1 : 0);
+    currencies[another].obtainSticks(NUM_STICKS, t, candlesticks[NUM_STICKS - 1].timeStamp);
+
+    highestRelative = lowestRelative = 
+      candlesticks[0].relative = (float)candlesticks[0].endPrice / (float)currencies[another].candlesticks[0].endPrice;
+    for (unsigned i = 1 ; i < NUM_STICKS ; i++) {
+      float re = (float)candlesticks[i].endPrice / (float)currencies[another].candlesticks[i].endPrice;
+
+      candlesticks[i].relative = re;
+      if (re < lowestRelative) {
+	lowestRelative = re;
+      }
+      if (highestRelative < re) {
+	highestRelative = re;
+      }
+    }
+    
     if (todayshigh == 0) {
       unsigned today = day(t + TIMEZONE);
       for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
@@ -644,6 +689,9 @@ Currency::ShowCurrentPrice()
     // get the position to draw last price
     prevPricePixel = lastPricePixel = map(lastPrice, lowest, highest, tft.height(), 0);
 
+    // get initial position for relative price
+    unsigned prevRel = floatmap(candlesticks[0].relative, lowestRelative, highestRelative, tft.height(), 0);
+    
     // draw candlesticks
     for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
       // draw vertical hour line
@@ -663,6 +711,14 @@ Currency::ShowCurrentPrice()
 	    tft.drawNumber(curHour, i * 3 - 5, textY, 2);
 	  }
 	}
+      }
+
+      if (0 < i) {
+	// draw graph for relative prices
+	unsigned curRel = floatmap(candlesticks[i].relative, lowestRelative, highestRelative,
+				   tft.height(), 0);
+	tft.drawLine(i * 3 - 2, prevRel, i * 3 + 1, curRel, TFT_ORANGE);
+	prevRel = curRel;
       }
 
       // draw candlesticks
