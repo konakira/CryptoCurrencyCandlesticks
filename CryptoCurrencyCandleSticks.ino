@@ -93,10 +93,11 @@ public:
   } candlesticks[NUM_STICKS];
   unsigned todayshigh = 0;
   unsigned todayslow = 0;
-  unsigned prevPrice = 0;
-  float prevPriceAgainstOtherCurrency = 0.0;
+  unsigned prevPrice = 0, price = 0;
+  unsigned lowest, highest;
+  float relative = 0.0, prevRelative = 0.0;
   float highestRelative, lowestRelative;
-  int prevPricePixel;
+  int pricePixel;
   unsigned prevTimeStamp = 0;
 
   Currency (char *na, char *pa, unsigned pl) {
@@ -108,6 +109,7 @@ public:
   unsigned obtainLastPrice(unsigned long *t);
   void obtainSticks(unsigned n, unsigned long t);
   void obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp);
+  void ShowChart();
   void ShowCurrentPrice();
   void SwitchCurrency();
   
@@ -257,7 +259,6 @@ SerialPrintTimestamp(unsigned t, unsigned tz)
 unsigned
 Currency::obtainLastPrice(unsigned long *t)
 {
-  unsigned retval = 0;
   unsigned long timestamp = 0;
   if (!client.connect(SERVER, 443)) {
     Serial.println("Connection failed!");
@@ -304,14 +305,8 @@ Currency::obtainLastPrice(unsigned long *t)
 #define TIMEZONE (9 * 60 * 60)
   
 	SerialPrintTimestamp(timestamp, TIMEZONE);
-	retval = (unsigned)doc["data"]["last"].as<long>();
-#if 0
-	if (prevTimeStamp == 0 || // for the first access, or ...
-	    /// caution!!!
-	    day(timestamp + TIMEZONE) != day(prevTimeStamp + TIMEZONE)) { // day changed
-	  todayshigh = todayslow = retval;
-	}
-#endif
+	prevPrice = price;
+	price = (unsigned)doc["data"]["last"].as<long>();
       }
     }
     client.stop();
@@ -320,7 +315,7 @@ Currency::obtainLastPrice(unsigned long *t)
     *t = timestamp;
   }
   // prevTimeStamp = timestamp;
-  return retval;
+  return price;
 }
 
 #define ALERT_INTERVAL 500 // msec    
@@ -370,7 +365,7 @@ ShowLastPrice(char *buf, int lastPricePixel, unsigned priceColor)
 }
 
 void
-ShowPriceAgainstOtherCurrency(char *buf, int lastPricePixel, unsigned priceColor)
+ShowRelativePrice(char *buf, int lastPricePixel, unsigned priceColor)
 {
   int textY = lastPricePixel - (tft.fontHeight(GFXFF) / 2);
   if (textY < 0) {
@@ -465,13 +460,134 @@ floatmap(float val, float l, float h, int a, int b)
 }
 
 void
+Currency::ShowChart()
+{
+  char buf[PRICEBUFSIZE], buf2[PRICEBUFSIZE];
+  unsigned stickColor = TFT_DOWNRED, priceColor = TFT_GREEN;
+
+  if (0 < alertDuration) {
+    return;
+  }
+
+  // show the chart
+  tft.fillScreen(TFT_BLACK);
+
+#define TFT_DARKBLUE        0x000F      /*   0,   0, 127 */
+
+  // draw horizontal price lines
+  if (price < prevPrice) {
+    priceColor = TFT_RED;
+  }
+  for (unsigned i = lowest / priceline + 1 ; i * priceline < highest ; i++) {
+    unsigned y = map(i * priceline, lowest, highest, tft.height(), 0);
+    tft.drawFastHLine(0, y, tft.width(), TFT_DARKBLUE);
+  }
+
+  // get the position to draw last price
+  pricePixel = map(price, lowest, highest, tft.height(), 0);
+
+  // get initial position for relative price
+  unsigned prevRel = floatmap(candlesticks[0].relative, lowestRelative, highestRelative, tft.height(), 0);
+  unsigned prevHour = hour(candlesticks[0].timeStamp + TIMEZONE);
+    
+  // draw candlesticks
+  for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
+    // draw vertical hour line
+    unsigned curHour = hour(candlesticks[i].timeStamp + TIMEZONE);
+    if (curHour != prevHour) {
+      prevHour = curHour;
+      tft.drawFastVLine(i * 3 + 1, 0, tft.height(), TFT_DARKBLUE);
+      if (curHour % 3 == 0) {
+	if (i * 3 - 5 < tft.width() - tft.textWidth(buf, 2) - 10) {
+	  // if we have enough space around vertical line, draw the time
+	  unsigned textY = 0;
+
+	  if (pricePixel < tft.height() / 2) {
+	    textY = tft.height() - tft.fontHeight(2);
+	  }
+	  tft.setTextColor(TFT_WHITE);
+	  tft.drawNumber(curHour, i * 3 - 5, textY, 2);
+	}
+      }
+    }
+
+    if (0 < i) { // draw graph for relative prices
+      unsigned curRel = floatmap(candlesticks[i].relative, lowestRelative, highestRelative,
+				 tft.height(), 0);
+      tft.drawLine(i * 3 - 2, prevRel, i * 3 + 1, curRel, TFT_ORANGE);
+      prevRel = curRel;
+    }
+
+    // draw candlesticks
+    int lowestPixel, highestPixel, lowPixel, pixelHeight;
+    
+    lowestPixel = map(candlesticks[i].lowestPrice, lowest, highest, tft.height(), 0);
+    highestPixel = map(candlesticks[i].highestPrice, lowest, highest, tft.height(), 0);
+
+    if (candlesticks[i].startPrice < candlesticks[i].endPrice) {
+      lowPixel = map(candlesticks[i].endPrice, lowest, highest, tft.height(), 0);
+      pixelHeight = map(candlesticks[i].startPrice, lowest, highest, tft.height(), 0)
+	- lowPixel;
+      stickColor = TFT_UPGREEN;
+    }
+    else {
+      lowPixel = map(candlesticks[i].startPrice, lowest, highest, tft.height(), 0);
+      pixelHeight = map(candlesticks[i].endPrice, lowest, highest, tft.height(), 0)
+	- lowPixel;
+      stickColor = TFT_DOWNRED;
+    }
+
+    tft.drawFastVLine(i * 3 + 1, highestPixel, lowestPixel - highestPixel, TFT_LIGHTGREY);
+    tft.fillRect(i * 3, highestPixel, 3, pixelHeight, stickColor);
+  }
+
+  // draw price horizontal line
+  unsigned stringWidth = tft.textWidth(buf, GFXFF) + PRICE_PAD_X;
+  tft.drawFastHLine(0, pricePixel, PRICE_MIN_X, priceColor);
+  tft.drawFastHLine(stringWidth, pricePixel, tft.width() - stringWidth, priceColor);
+  // tft.drawFastHLine(0, pricePixel, tft.width(), priceColor);
+
+  // draw highest and lowest price in the chart
+  itocsa(buf, PRICEBUFSIZE, highest);
+  tft.setTextColor(TFT_BLACK);
+  tft.drawString(buf, tft.width() - tft.textWidth(buf, 2) - 2, -1, 2);
+  tft.drawString(buf, tft.width() - tft.textWidth(buf, 2), 1, 2);
+  tft.setTextColor(TFT_WHITE);
+  tft.drawString(buf, tft.width() - tft.textWidth(buf, 2) - 1, 0, 2);
+
+  itocsa(buf, PRICEBUFSIZE, lowest);
+  tft.setTextColor(TFT_BLACK);
+  tft.drawString(buf,
+		 tft.width() - tft.textWidth(buf, 2) - 2,
+		 tft.height() - tft.fontHeight(2) - 1, 2);
+  tft.drawString(buf,
+		 tft.width() - tft.textWidth(buf, 2),
+		 tft.height() - tft.fontHeight(2) + 1, 2);
+  tft.setTextColor(TFT_WHITE);
+  tft.drawString(buf,
+		 tft.width() - tft.textWidth(buf, 2) - 1,
+		 tft.height() - tft.fontHeight(2), 2);
+
+  // show currency name
+  ShowCurrencyName(name, pricePixel);
+  
+  // draw last price
+  itocsa(buf, PRICEBUFSIZE, price);
+
+  // show the current cryptocurrency price on TTGO-T-display
+
+  ShowLastPrice(buf, pricePixel, priceColor);
+  snprintf(buf2, PRICEBUFSIZE, "%.5f", relative);
+  ShowRelativePrice(buf2, pricePixel,
+				relative < prevRelative ? TFT_RED: TFT_GREEN);
+  prevRelative = relative;
+}
+
+void
 Currency::ShowCurrentPrice()
 {
   unsigned long t; // for current time
   char buf[PRICEBUFSIZE], buf2[PRICEBUFSIZE];
-  unsigned lastPrice = 0, lastPriceOfOtherCurrency = 0;
-  float lastPriceAgainstOtherCurrency = 0.0;
-  int lastPricePixel = 0;
   unsigned stickColor = TFT_DOWNRED, priceColor = TFT_GREEN;
 
   if (0 < alertDuration) {
@@ -485,9 +601,9 @@ Currency::ShowCurrentPrice()
 
     // Grey out the price display
     itocsa(buf, PRICEBUFSIZE, prevPrice);
-    ShowLastPrice(buf, prevPricePixel, TFT_DARKGREY); // make the price grey
-    snprintf(buf2, PRICEBUFSIZE, "%.5f", lastPriceAgainstOtherCurrency);
-    ShowPriceAgainstOtherCurrency(buf2, prevPricePixel, TFT_DARKGREY);
+    ShowLastPrice(buf, pricePixel, TFT_DARKGREY); // make the price grey
+    snprintf(buf2, PRICEBUFSIZE, "%.5f", relative);
+    ShowRelativePrice(buf2, pricePixel, TFT_DARKGREY);
 
 #define CONNECTION_LOST "Reconnecting ..."
     tft.setTextColor(TFT_WHITE, TFT_BLUE);
@@ -519,18 +635,14 @@ Currency::ShowCurrentPrice()
   
   Serial.println("\n==== Starting connection to server...");
 
-  lastPriceOfOtherCurrency = currencies[cIndex == 0 ? 1 : 0].obtainLastPrice(&t);
-  lastPrice = obtainLastPrice(&t);
-  lastPriceAgainstOtherCurrency = (float)lastPrice / (float)lastPriceOfOtherCurrency;
-  if (day(t + TIMEZONE) != day(prevTimestamp + TIMEZONE)) {
-    prevTimestamp = t;
-    todayshigh = todayslow = 0;
-  }
-  itocsa(buf, PRICEBUFSIZE, lastPrice);
+  unsigned lastPriceOfOtherCurrency = currencies[cIndex == 0 ? 1 : 0].obtainLastPrice(&t);
+  obtainLastPrice(&t);
+  relative = (float)price / (float)lastPriceOfOtherCurrency;
+  itocsa(buf, PRICEBUFSIZE, price);
   Serial.print("last price = ");
   Serial.println(buf);
   // obtaining today's low and today's high
-  if (0 < lastPrice) {
+  if (0 < price) {
     obtainSticks(NUM_STICKS, t);
     // get data for another currency
     unsigned another = (cIndex == 0 ? 1 : 0);
@@ -570,9 +682,8 @@ Currency::ShowCurrentPrice()
   }
 
   // obtaining chart's high and low
-  unsigned lowest = candlesticks[0].lowestPrice; // chart's low
-  unsigned highest = candlesticks[0].highestPrice; // chart's high
-  unsigned prevHour = hour(candlesticks[0].timeStamp + TIMEZONE);
+  lowest = candlesticks[0].lowestPrice; // chart's low
+  highest = candlesticks[0].highestPrice; // chart's high
   for (unsigned i = 1 ; i < NUM_STICKS ; i++) {
     if (candlesticks[i].lowestPrice < lowest) {
       lowest = candlesticks[i].lowestPrice;
@@ -599,16 +710,16 @@ Currency::ShowCurrentPrice()
   // last event has the highest priority
 
   // today's high or low
-  if (lastPrice < todayslow) {
-    todayslow = lastPrice;
+  if (price < todayslow) {
+    todayslow = price;
 
     Alert.setMesg1("Updated");
     Alert.setMesg2("today's low");
     Alert.setBackColor(TFT_DOWNRED);
     alertDuration = ALERT_DURATION;
   }
-  else if (todayshigh < lastPrice) {
-    todayshigh = lastPrice;
+  else if (todayshigh < price) {
+    todayshigh = price;
 
     Alert.setMesg1("Updated");
     Alert.setMesg2("today's high");
@@ -648,15 +759,15 @@ Currency::ShowCurrentPrice()
   }
 
   // in a minute significant price change
-  if (0 < prevPrice && ONEMINUTE_THRESHOLD <= abs((long)lastPrice - (long)prevPrice) * 100 / (long)prevPrice) {
-    if (prevPrice < lastPrice) {
+  if (0 < prevPrice && ONEMINUTE_THRESHOLD <= abs((long)price - (long)prevPrice) * 100 / (long)prevPrice) {
+    if (prevPrice < price) {
       snprintf(Alert.mesgbuf, MESGSIZE, "%.1f%% up within",
-	       (float)(lastPrice - prevPrice) * 100.0 / (float)prevPrice);
+	       (float)(price - prevPrice) * 100.0 / (float)prevPrice);
       Alert.setBackColor(TFT_UPGREEN);
     }
     else {
       snprintf(Alert.mesgbuf, MESGSIZE, "%.1f%% down within",
-	       (float)(prevPrice - lastPrice) * 100.0 / (float)prevPrice);
+	       (float)(prevPrice - price) * 100.0 / (float)prevPrice);
       Alert.setBackColor(TFT_DOWNRED);
     }
     Alert.setMesg1(Alert.mesgbuf);
@@ -665,125 +776,13 @@ Currency::ShowCurrentPrice()
   }
 
   if (0 < alertDuration) {
-    Alert.setLastPrice(lastPrice);
+    Alert.setLastPrice(price);
     Alert.beginAlert();
     Alert.alertId = timer.setTimer(ALERT_INTERVAL, alertProc, ALERT_DURATION * (1000 / ALERT_INTERVAL) + 1);
-    prevPrice = lastPrice;
   }
   else {
     // show the chart
-    tft.fillScreen(TFT_BLACK);
-
-#define TFT_DARKBLUE        0x000F      /*   0,   0, 127 */
-
-    // draw horizontal price lines
-    if (lastPrice < prevPrice) {
-      priceColor = TFT_RED;
-    }
-    prevPrice = lastPrice;
-    for (unsigned i = lowest / priceline + 1 ; i * priceline < highest ; i++) {
-      unsigned y = map(i * priceline, lowest, highest, tft.height(), 0);
-      tft.drawFastHLine(0, y, tft.width(), TFT_DARKBLUE);
-    }
-
-    // get the position to draw last price
-    prevPricePixel = lastPricePixel = map(lastPrice, lowest, highest, tft.height(), 0);
-
-    // get initial position for relative price
-    unsigned prevRel = floatmap(candlesticks[0].relative, lowestRelative, highestRelative, tft.height(), 0);
-    
-    // draw candlesticks
-    for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
-      // draw vertical hour line
-      unsigned curHour = hour(candlesticks[i].timeStamp + TIMEZONE);
-      if (curHour != prevHour) {
-	prevHour = curHour;
-	tft.drawFastVLine(i * 3 + 1, 0, tft.height(), TFT_DARKBLUE);
-	if (curHour % 3 == 0) {
-	  if (i * 3 - 5 < tft.width() - tft.textWidth(buf, 2) - 10) {
-	    // if we have enough space around vertical line, draw the time
-	    unsigned textY = 0;
-
-	    if (lastPricePixel < tft.height() / 2) {
-	      textY = tft.height() - tft.fontHeight(2);
-	    }
-	    tft.setTextColor(TFT_WHITE);
-	    tft.drawNumber(curHour, i * 3 - 5, textY, 2);
-	  }
-	}
-      }
-
-      if (0 < i) {
-	// draw graph for relative prices
-	unsigned curRel = floatmap(candlesticks[i].relative, lowestRelative, highestRelative,
-				   tft.height(), 0);
-	tft.drawLine(i * 3 - 2, prevRel, i * 3 + 1, curRel, TFT_ORANGE);
-	prevRel = curRel;
-      }
-
-      // draw candlesticks
-      int lowestPixel, highestPixel, lowPixel, pixelHeight;
-    
-      lowestPixel = map(candlesticks[i].lowestPrice, lowest, highest, tft.height(), 0);
-      highestPixel = map(candlesticks[i].highestPrice, lowest, highest, tft.height(), 0);
-
-      if (candlesticks[i].startPrice < candlesticks[i].endPrice) {
-	lowPixel = map(candlesticks[i].endPrice, lowest, highest, tft.height(), 0);
-	pixelHeight = map(candlesticks[i].startPrice, lowest, highest, tft.height(), 0)
-	  - lowPixel;
-	stickColor = TFT_UPGREEN;
-      }
-      else {
-	lowPixel = map(candlesticks[i].startPrice, lowest, highest, tft.height(), 0);
-	pixelHeight = map(candlesticks[i].endPrice, lowest, highest, tft.height(), 0)
-	  - lowPixel;
-	stickColor = TFT_DOWNRED;
-      }
-
-      tft.drawFastVLine(i * 3 + 1, highestPixel, lowestPixel - highestPixel, TFT_LIGHTGREY);
-      tft.fillRect(i * 3, highestPixel, 3, pixelHeight, stickColor);
-    }
-
-    // draw price horizontal line
-    unsigned stringWidth = tft.textWidth(buf, GFXFF) + PRICE_PAD_X;
-    tft.drawFastHLine(0, lastPricePixel, PRICE_MIN_X, priceColor);
-    tft.drawFastHLine(stringWidth, lastPricePixel, tft.width() - stringWidth, priceColor);
-    // tft.drawFastHLine(0, lastPricePixel, tft.width(), priceColor);
-
-    // draw highest and lowest price in the chart
-    itocsa(buf, PRICEBUFSIZE, highest);
-    tft.setTextColor(TFT_BLACK);
-    tft.drawString(buf, tft.width() - tft.textWidth(buf, 2) - 2, -1, 2);
-    tft.drawString(buf, tft.width() - tft.textWidth(buf, 2), 1, 2);
-    tft.setTextColor(TFT_WHITE);
-    tft.drawString(buf, tft.width() - tft.textWidth(buf, 2) - 1, 0, 2);
-
-    itocsa(buf, PRICEBUFSIZE, lowest);
-    tft.setTextColor(TFT_BLACK);
-    tft.drawString(buf,
-		   tft.width() - tft.textWidth(buf, 2) - 2,
-		   tft.height() - tft.fontHeight(2) - 1, 2);
-    tft.drawString(buf,
-		   tft.width() - tft.textWidth(buf, 2),
-		   tft.height() - tft.fontHeight(2) + 1, 2);
-    tft.setTextColor(TFT_WHITE);
-    tft.drawString(buf,
-		   tft.width() - tft.textWidth(buf, 2) - 1,
-		   tft.height() - tft.fontHeight(2), 2);
-
-    // show currency name
-    ShowCurrencyName(name, lastPricePixel);
-  
-    // draw last price
-    itocsa(buf, PRICEBUFSIZE, lastPrice);
-
-    // show the current cryptocurrency price on TTGO-T-display
-
-    ShowLastPrice(buf, lastPricePixel, priceColor);
-    snprintf(buf2, PRICEBUFSIZE, "%.5f", lastPriceAgainstOtherCurrency);
-    ShowPriceAgainstOtherCurrency(buf2, prevPricePixel,
-				  lastPriceAgainstOtherCurrency < prevPriceAgainstOtherCurrency ? TFT_RED: TFT_GREEN);
-    prevPriceAgainstOtherCurrency = lastPriceAgainstOtherCurrency;
+    ShowChart();
   }
 }
 
@@ -818,9 +817,9 @@ void Currency::SwitchCurrency()
 
   // Grey out the price display
   itocsa(buf, PRICEBUFSIZE, prevPrice);
-  ShowLastPrice(buf, prevPricePixel, TFT_DARKGREY); // make the price grey
-  snprintf(buf2, PRICEBUFSIZE, "%.5f", prevPriceAgainstOtherCurrency);
-  ShowPriceAgainstOtherCurrency(buf2, prevPricePixel, TFT_DARKGREY);
+  ShowLastPrice(buf, pricePixel, TFT_DARKGREY); // make the price grey
+  snprintf(buf2, PRICEBUFSIZE, "%.5f", prevRelative);
+  ShowRelativePrice(buf2, pricePixel, TFT_DARKGREY);
 
 #define SWITCHING "Switching ..."
   tft.setTextColor(TFT_WHITE, TFT_BLUE);
@@ -828,8 +827,8 @@ void Currency::SwitchCurrency()
 		 tft.width() / 2 - tft.textWidth(SWITCHING, 4) / 2,
 		 tft.height() / 2 - tft.fontHeight(4) / 2, 4);
   
-  prevPrice = prevPricePixel = 0;
-  prevPriceAgainstOtherCurrency = 0.0;
+  prevPrice = pricePixel = 0;
+  prevRelative = 0.0;
   cIndex = (cIndex == 0) ? 1 : 0;
   
   currencies[cIndex].ShowCurrentPrice();
