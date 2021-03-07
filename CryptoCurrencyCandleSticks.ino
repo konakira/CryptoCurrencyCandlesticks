@@ -844,8 +844,6 @@ void Currency::SwitchCurrency()
 
   currencies[cIndex].relative = 1 / relative;
   currencies[cIndex].calcRelative();
-
-  // currencies[cIndex].ShowCurrentPrice();
   currencies[cIndex].ShowChart();
 }
 
