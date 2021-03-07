@@ -76,27 +76,45 @@ itocsa(char *buf, unsigned bufsiz, unsigned n)
 
 #define CANDLESTICK_WIDTH "5min"
 
-struct currency {
-  char *name, *pair;
-  unsigned priceline;
-} currencies[2] = {{"ETH", "eth_jpy", 5000}, {"BTC", "btc_jpy", 100000}};
-
-static unsigned currencyIndex = 0; // ETH by default.
-
 #define BUTTON1 35 // GPIO35
 #define BUTTON2 0 // GPIO0
 
 #define STICK_WIDTH 3 // width of a candle stick
 #define NUM_STICKS (HORIZONTAL_RESOLUTION / STICK_WIDTH)
-struct candlestick {
-  unsigned startPrice, endPrice, lowestPrice, highestPrice;
-  unsigned long timeStamp;
-};
 
-struct candlestick candlesticks[NUM_STICKS];
+class Currency {
+public:
+  char *name, *pair;
+  unsigned priceline;
+  struct {
+    unsigned startPrice, endPrice, lowestPrice, highestPrice;
+    float relative;
+    unsigned long timeStamp;
+  } candlesticks[NUM_STICKS];
+  unsigned todayshigh = 0;
+  unsigned todayslow = 0;
+  unsigned prevPrice = 0;
+  float prevPriceAgainstOtherCurrency = 0.0;
+  int prevPricePixel;
+  unsigned prevTimeStamp = 0;
+
+  Currency (char *na, char *pa, unsigned pl) {
+    name = na;
+    pair = pa;
+    priceline = pl;
+  }
+
+  unsigned obtainLastPrice(unsigned long *t);
+  void obtainSticks(unsigned n, unsigned long t);
+  void ShowCurrentPrice();
+  void SwitchCurrency();
+  
+} currencies[2] = {{"ETH", "eth_jpy", 5000}, {"BTC", "btc_jpy", 100000}};
+
+static unsigned cIndex = 0; // ETH by default.
 
 void
-obtainSticks(unsigned n, unsigned long t)
+Currency::obtainSticks(unsigned n, unsigned long t)
 {
   // Serial.println("\nobtainSticks called.");
 
@@ -110,7 +128,7 @@ obtainSticks(unsigned n, unsigned long t)
 
       // Make another HTTP request:
       client.print("GET https://" SERVER "/");
-      client.print(currencies[currencyIndex].pair);
+      client.print(pair);
       client.print("/candlestick/" CANDLESTICK_WIDTH "/");
       {
 	char yyyymmdd[9]; // 9 for "yyyymmdd"
@@ -218,9 +236,10 @@ SerialPrintTimestamp(unsigned t, unsigned tz)
 }
 
 unsigned
-obtainLastPrice(unsigned currency, unsigned long *t)
+Currency::obtainLastPrice(unsigned long *t)
 {
   unsigned retval = 0;
+  unsigned long timestamp = 0;
   if (!client.connect(SERVER, 443)) {
     Serial.println("Connection failed!");
   }
@@ -228,7 +247,7 @@ obtainLastPrice(unsigned currency, unsigned long *t)
     Serial.println("Connected to http server.");
     // Make a HTTP request:
     client.print("GET https://" SERVER "/");
-    client.print(currencies[currency].pair);
+    client.print(pair);
     client.println("/ticker HTTP/1.0");
     client.println("Host: " SERVER);
     client.println("Connection: close");
@@ -261,26 +280,33 @@ obtainLastPrice(unsigned currency, unsigned long *t)
 
 	// Obtaining time stamp of ticker response and use it as the current time,
 	// instead of obtaining current time by NTP.
-	*t = (unsigned long)(doc["data"]["timestamp"].as<unsigned long long>() / 1000);
+	timestamp = (unsigned long)(doc["data"]["timestamp"].as<unsigned long long>() / 1000);
 
 #define TIMEZONE (9 * 60 * 60)
   
-	SerialPrintTimestamp(*t, TIMEZONE);
+	SerialPrintTimestamp(timestamp, TIMEZONE);
 	retval = (unsigned)doc["data"]["last"].as<long>();
+#if 0
+	if (prevTimeStamp == 0 || // for the first access, or ...
+	    /// caution!!!
+	    day(timestamp + TIMEZONE) != day(prevTimeStamp + TIMEZONE)) { // day changed
+	  todayshigh = todayslow = retval;
+	}
+#endif
       }
     }
     client.stop();
   }
+  if (t) {
+    *t = timestamp;
+  }
+  // prevTimeStamp = timestamp;
   return retval;
 }
 
 #define ALERT_INTERVAL 500 // msec    
 #define ALERT_DURATION (40 /* sec */ * (1000 / ALERT_INTERVAL)) // times ALERT_INTERVAL
 static unsigned alertDuration = 0;
-static unsigned todayshigh = 0, todayslow = 0;
-static unsigned prevPrice = 0;
-static float prevPriceAgainstOtherCurrency = 0.0;
-static int prevPricePixel;
 static unsigned long prevCandlestickTimestamp = 0;
 static unsigned long prevTimestamp = 0;
 static bool changeTriggered = false;
@@ -346,7 +372,7 @@ ShowPriceAgainstOtherCurrency(char *buf, int lastPricePixel, unsigned priceColor
   tft.setTextColor(priceColor);
   tft.drawString(buf, PADX, textY, OTHER_CURRENCY_BASE_VALUE_FONT);
 #define BASE_DIFF 4
-  tft.drawString(currencies[currencyIndex == 0 ? 1 : 0].name,
+  tft.drawString(currencies[cIndex == 0 ? 1 : 0].name,
 		 PADX + tft.textWidth(buf, OTHER_CURRENCY_BASE_VALUE_FONT),
 		 textY + tft.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT) - tft.fontHeight(2) - BASE_DIFF, 2);
 }
@@ -411,20 +437,7 @@ private:
 } Alert;
 
 void
-alertProc()
-{
-  if (0 < alertDuration) {
-    Alert.flashAlert();
-    alertDuration--;
-    if (alertDuration == 0) {
-      timer.deleteTimer(Alert.alertId);
-      ShowCurrentPrice();
-    }
-  }
-}
-
-void
-ShowCurrentPrice()
+Currency::ShowCurrentPrice()
 {
   unsigned long t; // for current time
   char buf[PRICEBUFSIZE], buf2[PRICEBUFSIZE];
@@ -478,8 +491,8 @@ ShowCurrentPrice()
   
   Serial.println("\n==== Starting connection to server...");
 
-  lastPriceOfOtherCurrency = obtainLastPrice(currencyIndex == 0 ? 1 : 0, &t);
-  lastPrice = obtainLastPrice(currencyIndex, &t);
+  lastPriceOfOtherCurrency = currencies[cIndex == 0 ? 1 : 0].obtainLastPrice(&t);
+  lastPrice = obtainLastPrice(&t);
   lastPriceAgainstOtherCurrency = (float)lastPrice / (float)lastPriceOfOtherCurrency;
   if (day(t + TIMEZONE) != day(prevTimestamp + TIMEZONE)) {
     prevTimestamp = t;
@@ -490,6 +503,7 @@ ShowCurrentPrice()
   Serial.println(buf);
   // obtaining today's low and today's high
   if (0 < lastPrice) {
+    /// caution!!!! 
     obtainSticks(NUM_STICKS, t);
     if (todayshigh == 0) {
       unsigned today = day(t + TIMEZONE);
@@ -617,8 +631,6 @@ ShowCurrentPrice()
 
 #define TFT_DARKBLUE        0x000F      /*   0,   0, 127 */
 
-    unsigned priceline = currencies[currencyIndex].priceline;
-
     // draw horizontal price lines
     if (lastPrice < prevPrice) {
       priceColor = TFT_RED;
@@ -704,7 +716,7 @@ ShowCurrentPrice()
 		   tft.height() - tft.fontHeight(2), 2);
 
     // show currency name
-    ShowCurrencyName(currencies[currencyIndex].name, lastPricePixel);
+    ShowCurrencyName(name, lastPricePixel);
   
     // draw last price
     itocsa(buf, PRICEBUFSIZE, lastPrice);
@@ -719,42 +731,66 @@ ShowCurrentPrice()
   }
 }
 
+void
+alertProc()
+{
+  if (0 < alertDuration) {
+    Alert.flashAlert();
+    alertDuration--;
+    if (alertDuration == 0) {
+      timer.deleteTimer(Alert.alertId);
+      currencies[cIndex].ShowCurrentPrice();
+    }
+  }
+}
+
 void buttonEventProc()
 {
   changeTriggered = true;
 }
 
+void Currency::SwitchCurrency()
+{
+  char buf[PRICEBUFSIZE], buf2[PRICEBUFSIZE];
+  
+  // clear global variables..
+  prevCandlestickTimestamp = prevTimestamp = 0;
+  todayshigh = todayslow = 0;
+  alertDuration = 0;
+    
+  Serial.println("\nChange triggered.");
+
+  // Grey out the price display
+  itocsa(buf, PRICEBUFSIZE, prevPrice);
+  ShowLastPrice(buf, prevPricePixel, TFT_DARKGREY); // make the price grey
+  snprintf(buf2, PRICEBUFSIZE, "%.5f", prevPriceAgainstOtherCurrency);
+  ShowPriceAgainstOtherCurrency(buf2, prevPricePixel, TFT_DARKGREY);
+
+#define SWITCHING "Switching ..."
+  tft.setTextColor(TFT_WHITE, TFT_BLUE);
+  tft.drawString(SWITCHING,
+		 tft.width() / 2 - tft.textWidth(SWITCHING, 4) / 2,
+		 tft.height() / 2 - tft.fontHeight(4) / 2, 4);
+  
+  prevPrice = prevPricePixel = 0;
+  prevPriceAgainstOtherCurrency = 0.0;
+  cIndex = (cIndex == 0) ? 1 : 0;
+  
+  currencies[cIndex].ShowCurrentPrice();
+}
+
 void SecProc()
 {
   if (changeTriggered) {
-    char buf[PRICEBUFSIZE], buf2[PRICEBUFSIZE];
-    
-    // clear global variables..
     changeTriggered = false;
-    prevCandlestickTimestamp = prevTimestamp = 0;
-    todayshigh = todayslow = 0;
-    alertDuration = 0;
-    
-    Serial.println("\nChange triggered.");
-
-    // Grey out the price display
-    itocsa(buf, PRICEBUFSIZE, prevPrice);
-    ShowLastPrice(buf, prevPricePixel, TFT_DARKGREY); // make the price grey
-    snprintf(buf2, PRICEBUFSIZE, "%.5f", prevPriceAgainstOtherCurrency);
-    ShowPriceAgainstOtherCurrency(buf2, prevPricePixel, TFT_DARKGREY);
-
-#define SWITCHING "Switching ..."
-    tft.setTextColor(TFT_WHITE, TFT_BLUE);
-    tft.drawString(SWITCHING,
-		   tft.width() / 2 - tft.textWidth(SWITCHING, 4) / 2,
-		   tft.height() / 2 - tft.fontHeight(4) / 2, 4);
-
-    currencyIndex = (currencyIndex == 0) ? 1 : 0;
-    prevPrice = prevPricePixel = 0;
-    prevPriceAgainstOtherCurrency = 0.0;
-    
-    ShowCurrentPrice();
+    currencies[cIndex].SwitchCurrency();
   }
+}
+
+void
+_ShowCurrentPrice()
+{
+  currencies[cIndex].ShowCurrentPrice();
 }
 
 void setup()
@@ -788,7 +824,7 @@ void setup()
   }
   Serial.println(" Connected");
 
-  ShowCurrentPrice();
+  currencies[cIndex].ShowCurrentPrice();
 
   Serial.println("");
 
@@ -796,7 +832,7 @@ void setup()
   attachInterrupt(digitalPinToInterrupt(BUTTON2), buttonEventProc, FALLING);
   
   timer.setInterval(1000, SecProc);
-  timer.setInterval(60000, ShowCurrentPrice);
+  timer.setInterval(60000, _ShowCurrentPrice);
 }
 
 void loop()
