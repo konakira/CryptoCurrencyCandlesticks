@@ -810,7 +810,7 @@ alertProc()
     alertDuration--;
     if (alertDuration == 0) {
       timer.deleteTimer(Alert.alertId);
-      currencies[cIndex].ShowCurrentPrice();
+      currencies[cIndex].ShowChart();
     }
   }
 }
