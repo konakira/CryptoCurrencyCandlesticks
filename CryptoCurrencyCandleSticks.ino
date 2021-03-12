@@ -390,6 +390,7 @@ static bool changeTriggered = false;
 #define FIVEMINUTES_THRESHOLD 1 // per cent
 #define PADX 5
 #define PADY 5
+#define PADHOUR 15
 #define MESGSIZE 64
 #define ALERT_BLACK_DURATION 200 // msec
 
@@ -552,6 +553,8 @@ Currency::ShowChart()
   unsigned prevRel = floatmap(candlesticks[0].relative, lowestRelative, highestRelative, tft.height(), 0);
   unsigned prevHour = hour(candlesticks[0].timeStamp + TIMEZONE);
     
+  itocsa(buf, PRICEBUFSIZE, highest);
+
   // draw candlesticks
   for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
     // draw vertical hour line
@@ -560,7 +563,7 @@ Currency::ShowChart()
       prevHour = curHour;
       tft.drawFastVLine(i * 3 + 1, 0, tft.height(), TFT_DARKBLUE);
       if (curHour % 3 == 0) {
-	if (i * 3 - 5 < tft.width() - tft.textWidth(buf, 2) - 10) {
+	if (i * 3 - 5 < tft.width() - tft.textWidth(buf, 2) - PADHOUR) {
 	  // if we have enough space around vertical line, draw the time
 	  unsigned textY = 0;
 
