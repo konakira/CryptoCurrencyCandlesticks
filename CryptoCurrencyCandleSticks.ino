@@ -80,6 +80,7 @@ itocsa(char *buf, unsigned bufsiz, unsigned n)
 }
 
 #define CANDLESTICK_WIDTH "5min"
+#define CANDLESTICK_WIDTH_MIN 5
 
 #define BUTTON1 35 // GPIO35
 #define BUTTON2 0 // GPIO0
@@ -100,7 +101,7 @@ public:
   unsigned todayslow = 0;
   unsigned prevPrice = 0, price = 0;
   unsigned lowest, highest;
-  unsigned long prevTimeStamp;
+  unsigned long prevTimeStamp = 0;
   float relative = 0.0, prevRelative = 0.0;
   float highestRelative, lowestRelative;
   int pricePixel;
@@ -671,6 +672,7 @@ void
 Currency::ShowCurrentPrice()
 {
   unsigned long t; // for current time
+  unsigned long prevTime;
   char buf[PRICEBUFSIZE], buf2[PRICEBUFSIZE];
   unsigned stickColor = TFT_DOWNRED, priceColor = TFT_GREEN;
 
@@ -721,6 +723,7 @@ Currency::ShowCurrentPrice()
 
   ShowUpdating();
 
+  prevTime = prevTimeStamp;
   unsigned lastPriceOfOtherCurrency = currencies[cIndex == 0 ? 1 : 0].obtainLastPrice(&t);
   obtainLastPrice(&t);
   relative = (float)price / (float)lastPriceOfOtherCurrency;
@@ -728,7 +731,12 @@ Currency::ShowCurrentPrice()
   Serial.print("last price = ");
   Serial.println(buf);
   // obtaining today's low and today's high
-  if (0 < price) {
+  if (0 < price
+      && (0 == prevTime
+	  || (minute(prevTimeStamp) % CANDLESTICK_WIDTH_MIN) < (minute(prevTime) % CANDLESTICK_WIDTH_MIN))) {
+    // I forgot what '0 < price' means
+    // Meaning of '(minute(prevTimeStamp) % CANDLESTICK_WIDTH_MIN) < (minute(prevTime) % CANDLESTICK_WIDTH_MIN)'
+    // is that time exceeds specified CANDLESTICK_WIDTH_MIN, so that, it is necessary to obtain candlesticks.
     obtainSticks(NUM_STICKS, t);
     // get data for another currency
     unsigned another = (cIndex == 0 ? 1 : 0);
