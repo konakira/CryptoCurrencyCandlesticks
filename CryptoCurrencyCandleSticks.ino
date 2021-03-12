@@ -118,7 +118,7 @@ public:
   void ShowChart();
   void ShowCurrentPrice();
   void SwitchCurrency();
-  
+  void ShowUpdating();
 } currencies[2] = {{"ETH", "eth_jpy", 5000}, {"BTC", "btc_jpy", 100000}};
 
 static unsigned cIndex = 0; // ETH by default.
@@ -448,6 +448,22 @@ ShowCurrencyName(char *buf, int lastPricePixel)
   tft.drawString(buf, tft.width() - tft.textWidth(buf, 2) - 1, textY, 2);
 }
 
+static char *updating = "Updating...";
+
+void
+Currency::ShowUpdating()
+{
+  int textY;
+  if (pricePixel < tft.height() / 2) {
+    textY = tft.height() - tft.fontHeight(2) * 2;
+  }
+  else {
+    textY = tft.fontHeight(2);
+  }
+  tft.setTextColor(TFT_WHITE, TFT_BLUE);
+  tft.drawString(updating, tft.width() - tft.textWidth(updating, 2) - 1, textY, 2);
+}
+
 class alert {
 public:
   void setBackColor(unsigned color) {
@@ -701,6 +717,8 @@ Currency::ShowCurrentPrice()
   }
   
   Serial.println("\n==== Starting connection to server...");
+
+  ShowUpdating();
 
   unsigned lastPriceOfOtherCurrency = currencies[cIndex == 0 ? 1 : 0].obtainLastPrice(&t);
   obtainLastPrice(&t);
