@@ -118,6 +118,7 @@ public:
   void ShowChart();
   void ShowCurrentPrice();
   void SwitchCurrency();
+  void ShowCurrencyName(char *buf);
   void ShowUpdating();
 } currencies[2] = {{"ETH", "eth_jpy", 5000}, {"BTC", "btc_jpy", 100000}};
 
@@ -436,10 +437,10 @@ ShowRelativePrice(char *buf, int lastPricePixel, unsigned priceColor)
 }
 
 void
-ShowCurrencyName(char *buf, int lastPricePixel)
+Currency::ShowCurrencyName(char *buf)
 {
   int textY;
-  if (lastPricePixel < tft.height() / 2) {
+  if (pricePixel < tft.height() / 2) {
     textY = tft.height() - tft.fontHeight(2) * 2;
   }
   else {
@@ -629,7 +630,7 @@ Currency::ShowChart()
 		 tft.height() - tft.fontHeight(2), 2);
 
   // show currency name
-  ShowCurrencyName(name, pricePixel);
+  ShowCurrencyName(name);
   
   // draw last price
   itocsa(buf, PRICEBUFSIZE, price);
