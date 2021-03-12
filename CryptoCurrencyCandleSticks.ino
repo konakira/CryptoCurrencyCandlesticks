@@ -570,7 +570,7 @@ Currency::ShowChart()
 	  if (pricePixel < tft.height() / 2) {
 	    textY = tft.height() - tft.fontHeight(2);
 	  }
-	  tft.setTextColor(TFT_WHITE);
+	  tft.setTextColor(TFT_CYAN);
 	  tft.drawNumber(curHour, i * 3 - 5, textY, 2);
 	}
       }
