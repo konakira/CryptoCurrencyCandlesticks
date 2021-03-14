@@ -390,7 +390,6 @@ static bool changeTriggered = false;
 #define FIVEMINUTES_THRESHOLD 1 // per cent
 #define PADX 5
 #define PADY 5
-#define PADHOUR 15
 #define MESGSIZE 64
 #define ALERT_BLACK_DURATION 200 // msec
 
@@ -563,7 +562,10 @@ Currency::ShowChart()
       prevHour = curHour;
       tft.drawFastVLine(i * 3 + 1, 0, tft.height(), TFT_DARKBLUE);
       if (curHour % 3 == 0) {
-	if (i * 3 - 5 < tft.width() - tft.textWidth(buf, 2) - PADHOUR) {
+	char bufHour[4];
+	snprintf(bufHour, sizeof(bufHour) - 1, "%d", curHour);
+	int offset = (tft.textWidth(bufHour, 2) + 1) / 2;
+	if (i * 3 < tft.width() - tft.textWidth(buf, 2) - offset - PADX) {
 	  // if we have enough space around vertical line, draw the time
 	  unsigned textY = 0;
 
@@ -571,7 +573,7 @@ Currency::ShowChart()
 	    textY = tft.height() - tft.fontHeight(2);
 	  }
 	  tft.setTextColor(TFT_CYAN);
-	  tft.drawNumber(curHour, i * 3 - 5, textY, 2);
+	  tft.drawNumber(curHour, i * 3 - offset, textY, 2);
 	}
       }
     }
