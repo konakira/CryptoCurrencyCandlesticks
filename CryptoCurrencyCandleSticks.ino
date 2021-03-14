@@ -564,7 +564,7 @@ Currency::ShowChart()
       if (curHour % 3 == 0) {
 	char bufHour[4];
 	snprintf(bufHour, sizeof(bufHour) - 1, "%d", curHour);
-	int offset = (tft.textWidth(bufHour, 2) + 1) / 2;
+	int offset = tft.textWidth(bufHour, 2) / 2;
 	if (i * 3 < tft.width() - tft.textWidth(buf, 2) - offset - PADX) {
 	  // if we have enough space around vertical line, draw the time
 	  unsigned textY = 0;
