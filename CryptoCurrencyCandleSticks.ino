@@ -2,7 +2,12 @@
 #include <WiFiClientSecure.h>
 #define ARDUINOJSON_USE_LONG_LONG 1
 #include <ArduinoJson.h>
+#define M5STICKCPLUS
+#ifdef M5STICKCPLUS
+#include <M5StickCPlus.h>
+#else // !M5StickCPlus
 #include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
+#endif // !M5StickCPlus
 #include <SPI.h>
 #include <SimpleTimer.h>
 #include <TimeLib.h>
@@ -901,6 +906,11 @@ void setup()
   
   Serial.println("");
   Serial.println("CryptoCurrency candlestick chart display terminal started.");
+
+#ifdef M5StickCPlus // I am not sure whether this is necessary or not.
+  // initialize the M5StickC object
+  M5.begin();
+#endif
 
   // initialize TFT screen
   tft.init(); // equivalent to tft.begin();
