@@ -949,5 +949,11 @@ void setup()
 
 void loop()
 {
+#ifdef M5STICKCPLUS
+  M5.update();
+  if (M5.BtnA.wasPressed() || M5.BtnB.wasPressed()) {
+    changeTriggered = true;
+  }
+#endif
   timer.run();
 }
