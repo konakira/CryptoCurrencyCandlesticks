@@ -907,7 +907,7 @@ void setup()
   Serial.println("");
   Serial.println("CryptoCurrency candlestick chart display terminal started.");
 
-#ifdef M5StickCPlus // I am not sure whether this is necessary or not.
+#ifdef M5STICKCPLUS // I am not sure whether this is necessary or not.
   // initialize the M5StickC object
   M5.begin();
 #endif
