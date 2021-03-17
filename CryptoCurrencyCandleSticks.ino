@@ -2,11 +2,16 @@
 #include <WiFiClientSecure.h>
 #define ARDUINOJSON_USE_LONG_LONG 1
 #include <ArduinoJson.h>
-#define M5STICKCPLUS
+//#define M5STICKCPLUS
+#define M5CORE2
 #ifdef M5STICKCPLUS
 #include <M5StickCPlus.h>
 #else // !M5StickCPlus
+#ifdef M5CORE2
+#include <M5Core2.h>
+#else // !M5CORE2
 #include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
+#endif // !M5CORE2
 #endif // !M5StickCPlus
 #include <SPI.h>
 #include <SimpleTimer.h>
@@ -907,14 +912,19 @@ void setup()
   Serial.println("");
   Serial.println("CryptoCurrency candlestick chart display terminal started.");
 
-#ifdef M5STICKCPLUS // I am not sure whether this is necessary or not.
+#if defined(M5STICKCPLUS) || defined(M5CORE2)
   // initialize the M5StickC object
   M5.begin();
 #endif
 
   // initialize TFT screen
   tft.init(); // equivalent to tft.begin();
+#ifdef M5CORE2
+  tft.setRotation(0); // set it to 1 or 3 for landscape resolution
+#else
   tft.setRotation(1); // set it to 1 or 3 for landscape resolution
+#endif
+  
   tft.fillScreen(TFT_BLUE);
   tft.setTextColor(TFT_WHITE);
   tft.setTextPadding(PADX); // seems no effect by this line.
@@ -949,7 +959,7 @@ void setup()
 
 void loop()
 {
-#ifdef M5STICKCPLUS
+#if defined(M5STICKCPLUS) || defined(M5CORE2)
   M5.update();
   if (M5.BtnA.wasPressed() || M5.BtnB.wasPressed()) {
     changeTriggered = true;
