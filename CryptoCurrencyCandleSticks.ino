@@ -135,6 +135,10 @@ public:
 
 static unsigned cIndex = 0; // ETH by default.
 
+unsigned numScreens = 2;
+unsigned tftHeight = 0;
+unsigned tftHalfHeight = 0;
+
 #define TIMEZONE (9 * 60 * 60)
 
 void
@@ -410,8 +414,8 @@ ShowLastPrice(char *buf, int lastPricePixel, unsigned priceColor)
   if (textY < 0) {
     textY = 0;
   }
-  else if (tft.height() - tft.fontHeight(GFXFF) + PRICE_PAD_Y < textY) {
-    textY = tft.height() - tft.fontHeight(GFXFF) + PRICE_PAD_Y;
+  else if (tftHeight - tft.fontHeight(GFXFF) + PRICE_PAD_Y < textY) {
+    textY = tftHeight - tft.fontHeight(GFXFF) + PRICE_PAD_Y;
   }
   tft.setTextColor(TFT_BLACK);
   tft.drawString(buf, - BORDER_WIDTH, textY - BORDER_WIDTH, GFXFF);
@@ -427,10 +431,10 @@ ShowRelativePrice(char *buf, int lastPricePixel, unsigned priceColor)
   if (textY < 0) {
     textY = 0;
   }
-  else if (tft.height() - tft.fontHeight(GFXFF) + PRICE_PAD_Y < textY) {
-    textY = tft.height() - tft.fontHeight(GFXFF) + PRICE_PAD_Y;
+  else if (tftHeight - tft.fontHeight(GFXFF) + PRICE_PAD_Y < textY) {
+    textY = tftHeight - tft.fontHeight(GFXFF) + PRICE_PAD_Y;
   }
-  if (lastPricePixel < tft.height() / 2) {
+  if (lastPricePixel < tftHalfHeight) {
     textY += tft.fontHeight(GFXFF);
   }
   else {
@@ -451,8 +455,8 @@ void
 Currency::ShowCurrencyName(char *buf)
 {
   int textY;
-  if (pricePixel < tft.height() / 2) {
-    textY = tft.height() - tft.fontHeight(2) * 2;
+  if (pricePixel < tftHalfHeight) {
+    textY = tftHeight - tft.fontHeight(2) * 2;
   }
   else {
     textY = tft.fontHeight(2);
@@ -466,8 +470,8 @@ void
 Currency::ShowUpdating()
 {
   int textY;
-  if (pricePixel < tft.height() / 2) {
-    textY = tft.height() - tft.fontHeight(2) * 2;
+  if (pricePixel < tftHalfHeight) {
+    textY = tftHeight - tft.fontHeight(2) * 2;
   }
   else {
     textY = tft.fontHeight(2);
@@ -512,7 +516,7 @@ private:
     tft.drawString(alertmesg2, PADX, tft.fontHeight(4) + PADY, 4);
     tft.drawString(buf,
 		   tft.width() / 2 - tft.textWidth(buf, GFXFF) / 2,
-		   tft.height() - tft.fontHeight(GFXFF), GFXFF);
+		   tftHeight - tft.fontHeight(GFXFF), GFXFF);
   }
   char buf[PRICEBUFSIZE];
   char *alertmesg1;
@@ -551,15 +555,15 @@ Currency::ShowChart()
     priceColor = TFT_RED;
   }
   for (unsigned i = lowest / priceline + 1 ; i * priceline < highest ; i++) {
-    unsigned y = map(i * priceline, lowest, highest, tft.height(), 0);
+    unsigned y = map(i * priceline, lowest, highest, tftHeight, 0);
     tft.drawFastHLine(0, y, tft.width(), TFT_DARKBLUE);
   }
 
   // get the position to draw last price
-  pricePixel = map(price, lowest, highest, tft.height(), 0);
+  pricePixel = map(price, lowest, highest, tftHeight, 0);
 
   // get initial position for relative price
-  unsigned prevRel = floatmap(candlesticks[0].relative, lowestRelative, highestRelative, tft.height(), 0);
+  unsigned prevRel = floatmap(candlesticks[0].relative, lowestRelative, highestRelative, tftHeight, 0);
   unsigned prevHour = hour(candlesticks[0].timeStamp + TIMEZONE);
     
   itocsa(buf, PRICEBUFSIZE, highest);
@@ -570,7 +574,7 @@ Currency::ShowChart()
     unsigned curHour = hour(candlesticks[i].timeStamp + TIMEZONE);
     if (curHour != prevHour) {
       prevHour = curHour;
-      tft.drawFastVLine(i * 3 + 1, 0, tft.height(), TFT_DARKBLUE);
+      tft.drawFastVLine(i * 3 + 1, 0, tftHeight, TFT_DARKBLUE);
       if (curHour % 3 == 0) {
 	char bufHour[4];
 	snprintf(bufHour, sizeof(bufHour) - 1, "%d", curHour);
@@ -579,8 +583,8 @@ Currency::ShowChart()
 	  // if we have enough space around vertical line, draw the time
 	  unsigned textY = 0;
 
-	  if (pricePixel < tft.height() / 2) {
-	    textY = tft.height() - tft.fontHeight(2);
+	  if (pricePixel < tftHalfHeight) {
+	    textY = tftHeight - tft.fontHeight(2);
 	  }
 	  tft.setTextColor(TFT_CYAN);
 	  tft.drawNumber(curHour, i * 3 - offset, textY, 2);
@@ -590,7 +594,7 @@ Currency::ShowChart()
 
     if (0 < i) { // draw graph for relative prices
       unsigned curRel = floatmap(candlesticks[i].relative, lowestRelative, highestRelative,
-				 tft.height(), 0);
+				 tftHeight, 0);
       tft.drawLine(i * 3 - 2, prevRel, i * 3 + 1, curRel, TFT_ORANGE);
       prevRel = curRel;
     }
@@ -598,18 +602,18 @@ Currency::ShowChart()
     // draw candlesticks
     int lowestPixel, highestPixel, lowPixel, pixelHeight;
     
-    lowestPixel = map(candlesticks[i].lowestPrice, lowest, highest, tft.height(), 0);
-    highestPixel = map(candlesticks[i].highestPrice, lowest, highest, tft.height(), 0);
+    lowestPixel = map(candlesticks[i].lowestPrice, lowest, highest, tftHeight, 0);
+    highestPixel = map(candlesticks[i].highestPrice, lowest, highest, tftHeight, 0);
 
     if (candlesticks[i].startPrice < candlesticks[i].endPrice) {
-      lowPixel = map(candlesticks[i].endPrice, lowest, highest, tft.height(), 0);
-      pixelHeight = map(candlesticks[i].startPrice, lowest, highest, tft.height(), 0)
+      lowPixel = map(candlesticks[i].endPrice, lowest, highest, tftHeight, 0);
+      pixelHeight = map(candlesticks[i].startPrice, lowest, highest, tftHeight, 0)
 	- lowPixel;
       stickColor = TFT_UPGREEN;
     }
     else {
-      lowPixel = map(candlesticks[i].startPrice, lowest, highest, tft.height(), 0);
-      pixelHeight = map(candlesticks[i].endPrice, lowest, highest, tft.height(), 0)
+      lowPixel = map(candlesticks[i].startPrice, lowest, highest, tftHeight, 0);
+      pixelHeight = map(candlesticks[i].endPrice, lowest, highest, tftHeight, 0)
 	- lowPixel;
       stickColor = TFT_DOWNRED;
     }
@@ -636,14 +640,14 @@ Currency::ShowChart()
   tft.setTextColor(TFT_BLACK);
   tft.drawString(buf,
 		 tft.width() - tft.textWidth(buf, 2) - 2,
-		 tft.height() - tft.fontHeight(2) - 1, 2);
+		 tftHeight - tft.fontHeight(2) - 1, 2);
   tft.drawString(buf,
 		 tft.width() - tft.textWidth(buf, 2),
-		 tft.height() - tft.fontHeight(2) + 1, 2);
+		 tftHeight - tft.fontHeight(2) + 1, 2);
   tft.setTextColor(TFT_WHITE);
   tft.drawString(buf,
 		 tft.width() - tft.textWidth(buf, 2) - 1,
-		 tft.height() - tft.fontHeight(2), 2);
+		 tftHeight - tft.fontHeight(2), 2);
 
   // show currency name
   ShowCurrencyName(name);
@@ -710,7 +714,7 @@ Currency::ShowCurrentPrice()
     tft.setTextColor(TFT_WHITE, TFT_BLUE);
     tft.drawString(CONNECTION_LOST,
 		   tft.width() / 2 - tft.textWidth(CONNECTION_LOST, 4) / 2,
-		   tft.height() / 2 - tft.fontHeight(4) / 2, 4);
+		   tftHalfHeight - tft.fontHeight(4) / 2, 4);
     
     Serial.print("WiFi connection was lost.\nAttempting to reconnect to WiFi ");
     // WiFi.begin(WIFIAP, WIFIPW);
@@ -762,7 +766,7 @@ Currency::ShowCurrentPrice()
   SerialPrintTimestamp(candlesticks[NUM_STICKS - 1].timeStamp, TIMEZONE);
 
   Serial.print("Vertical price line in pixel = ");
-  Serial.println(map(candlesticks[NUM_STICKS - 1].endPrice, lowest, highest, tft.height(), 0));
+  Serial.println(map(candlesticks[NUM_STICKS - 1].endPrice, lowest, highest, tftHeight, 0));
 
   // check events...
   // last event has the highest priority
@@ -882,7 +886,7 @@ void Currency::SwitchCurrency()
   tft.setTextColor(TFT_WHITE, TFT_BLUE);
   tft.drawString(SWITCHING,
 		 tft.width() / 2 - tft.textWidth(SWITCHING, 4) / 2,
-		 tft.height() / 2 - tft.fontHeight(4) / 2, 4);
+		 tftHalfHeight - tft.fontHeight(4) / 2, 4);
   
   cIndex = (cIndex == 0) ? 1 : 0;
 
@@ -907,14 +911,10 @@ _ShowCurrentPrice()
 
 void setup()
 {
-  Serial.begin(115200);
-  
-  Serial.println("");
-  Serial.println("CryptoCurrency candlestick chart display terminal started.");
-
 #if defined(M5STICKCPLUS) || defined(M5CORE2)
   // initialize the M5StickC object
   M5.begin();
+  delay(100);
 #endif
 
   // initialize TFT screen
@@ -924,6 +924,18 @@ void setup()
 #else
   tft.setRotation(1); // set it to 1 or 3 for landscape resolution
 #endif
+
+  Serial.begin(115200);
+  
+  Serial.println("");
+  Serial.println("CryptoCurrency candlestick chart display terminal started.");
+
+  tftHeight = tft.height() / numScreens;
+
+  Serial.print("tftHeight = ");
+  Serial.println(tftHeight);
+  
+  tftHalfHeight = tftHeight / 2;
   
   tft.fillScreen(TFT_BLUE);
   tft.setTextColor(TFT_WHITE);
