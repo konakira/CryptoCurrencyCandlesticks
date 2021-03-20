@@ -140,12 +140,13 @@ public:
 
 static unsigned cIndex = 0; // ETH by default.
 
-unsigned numScreens = 2;
+unsigned numScreens = 1;
 unsigned tftHeight = 0;
 unsigned tftWidth = 0;
 unsigned tftHalfHeight = 0;
 
 #define TIMEZONE (9 * 60 * 60)
+#define MINIMUM_SPLITTABLE_HEIGHT 239
 
 void
 Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
@@ -455,7 +456,7 @@ ShowRelativePrice(char *buf, int lastPricePixel, unsigned priceColor, int yoff)
     textY -= LCD.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT);
   }
   DrawStringWithShade(buf, 0, textY + yoff, OTHER_CURRENCY_BASE_VALUE_FONT, priceColor, BORDER_WIDTH);
-  DrawStringWithShade(currencies[cIndex == 0 ? 1 : 0].name,
+  DrawStringWithShade(currencies[1 - cIndex].name,
 		      PADX + LCD.textWidth(buf, OTHER_CURRENCY_BASE_VALUE_FONT),
 		      textY + yoff + LCD.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT) - LCD.fontHeight(2) - BASE_DIFF, 2, priceColor, BORDER_WIDTH);
 }
@@ -661,7 +662,7 @@ Currency::ShowChart(int yoff)
 void
 Currency::calcRelative()
 {
-  unsigned another = (cIndex == 0 ? 1 : 0);
+  unsigned another = 1 - cIndex; // (cIndex == 1) ? 0 : 1
 
   highestRelative = lowestRelative = candlesticks[0].relative =
     (float)candlesticks[0].endPrice / (float)currencies[another].candlesticks[0].endPrice;
@@ -716,7 +717,8 @@ Currency::ShowCurrentPrice()
   unsigned long prevTime;
   char buf[PRICEBUFSIZE], buf2[PRICEBUFSIZE];
   unsigned stickColor = TFT_DOWNRED, priceColor = TFT_GREEN;
-  unsigned another = (cIndex == 0 ? 1 : 0);
+  unsigned another = 1 - cIndex; // (cIndex == 1) ? 0 : 1
+
 
   if (0 < alertDuration) {
     return;
@@ -891,31 +893,23 @@ alertProc()
 
 void Currency::SwitchCurrency()
 {
-  char buf[PRICEBUFSIZE], buf2[PRICEBUFSIZE];
-  
+  unsigned another = cIndex;
   // clear global variables..
-  prevCandlestickTimestamp = 0;
   alertDuration = 0;
     
-  Serial.println("\nChange triggered.");
+  Serial.println("Change triggered.");
 
-  // Grey out the price display
-  itocsa(buf, PRICEBUFSIZE, price);
-  ShowLastPrice(buf, pricePixel, TFT_DARKGREY, 0/* yoff */); // make the price grey
-  snprintf(buf2, PRICEBUFSIZE, "%.5f", relative);
-  ShowRelativePrice(buf2, pricePixel, TFT_DARKGREY, 0/* yoff */);
+  if (cIndex == 1 && MINIMUM_SPLITTABLE_HEIGHT < LCD.height()) {
+    numScreens = 3 - numScreens; // (numScreens == 2) ? 1 : 2, numScreen = {1, 2}
+    tftHeight = LCD.height() / numScreens;
+  }
+  cIndex = 1 - cIndex; // (cIndex == 1) ? 0 : 1
 
-#define SWITCHING "Switching ..."
-  LCD.setTextColor(TFT_WHITE, TFT_BLUE);
-  LCD.drawString(SWITCHING,
-		 tftWidth / 2 - LCD.textWidth(SWITCHING, 4) / 2,
-		 tftHalfHeight - LCD.fontHeight(4) / 2, 4);
-  
-  cIndex = (cIndex == 0) ? 1 : 0;
-
-  currencies[cIndex].relative = 1 / relative;
-  currencies[cIndex].calcRelative();
+  LCD.fillScreen(TFT_BLACK);
   currencies[cIndex].ShowChart(0);
+  if (1 < numScreens) {
+    currencies[another].ShowChart(tftHeight);
+  }
 }
 
 void SecProc()
