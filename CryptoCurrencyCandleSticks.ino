@@ -146,7 +146,9 @@ unsigned tftHeight = 0;
 unsigned tftWidth = 0;
 unsigned tftHalfHeight = 0;
 unsigned dedicatedPriceAreaHeight = 0;
+unsigned PriceFontHeight = 0;
 
+#define PRICE_FONT_HEIGHT_ADJUSTMENT 10
 #define TIMEZONE (9 * 60 * 60)
 #define MINIMUM_SPLITTABLE_HEIGHT 239 // for splitting screen into dual one
 #define MINIMUM_SEPARATABLE_HEIGHT 200 // for price and chart seperation
@@ -435,12 +437,12 @@ ShowLastPrice(char *buf, int lastPricePixel, unsigned priceColor, int yoff)
     textY = 0;
   }
   else {
-    textY = lastPricePixel - (LCD.fontHeight(GFXFF) / 2);
+    textY = lastPricePixel - (PriceFontHeight / 2);
     if (textY < 0) {
       textY = 0;
     }
-    else if (tftHeight - LCD.fontHeight(GFXFF) + PRICE_PAD_Y < textY) {
-      textY = tftHeight - LCD.fontHeight(GFXFF) + PRICE_PAD_Y;
+    else if (tftHeight - PriceFontHeight + PRICE_PAD_Y < textY) {
+      textY = tftHeight - PriceFontHeight + PRICE_PAD_Y;
     }
     textY += yoff;
   }
@@ -455,18 +457,18 @@ ShowRelativePrice(char *buf, int lastPricePixel, unsigned priceColor, int yoff)
   int textY;
 
   if (dedicatedPriceAreaHeight) {
-    textY = LCD.fontHeight(GFXFF);
+    textY = PriceFontHeight;
   }
   else {
-    textY = lastPricePixel - (LCD.fontHeight(GFXFF) / 2);
+    textY = lastPricePixel - (PriceFontHeight / 2);
     if (textY < 0) {
       textY = 0;
     }
-    else if (tftHeight - LCD.fontHeight(GFXFF) + PRICE_PAD_Y < textY) {
-      textY = tftHeight - LCD.fontHeight(GFXFF) + PRICE_PAD_Y;
+    else if (tftHeight - PriceFontHeight + PRICE_PAD_Y < textY) {
+      textY = tftHeight - PriceFontHeight + PRICE_PAD_Y;
     }
     if (lastPricePixel < tftHalfHeight) {
-      textY += LCD.fontHeight(GFXFF);
+      textY += PriceFontHeight;
     }
     else {
       textY -= LCD.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT);
@@ -543,7 +545,7 @@ private:
     LCD.drawString(alertmesg2, PADX, LCD.fontHeight(4) + PADY, 4);
     LCD.drawString(buf,
 		   tftWidth / 2 - LCD.textWidth(buf, GFXFF) / 2,
-		   tftHeight - LCD.fontHeight(GFXFF), GFXFF);
+		   tftHeight - PriceFontHeight, GFXFF);
   }
   char buf[PRICEBUFSIZE];
   char *alertmesg1;
@@ -933,7 +935,7 @@ void Currency::SwitchCurrency()
   if (cIndex == 1 && MINIMUM_SPLITTABLE_HEIGHT < LCD.height()) {
     numScreens = 3 - numScreens; // (numScreens == 2) ? 1 : 2, numScreen = {1, 2}
     tftHeight = LCD.height() / numScreens;
-    unsigned priceHeight = LCD.fontHeight(GFXFF) + LCD.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT);
+    unsigned priceHeight = PriceFontHeight + LCD.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT);
     if (MINIMUM_SEPARATABLE_HEIGHT < tftHeight - priceHeight) {
       dedicatedPriceAreaHeight = priceHeight;
       tftHeight -= priceHeight;
@@ -1013,8 +1015,9 @@ void setup()
 		 LCD.padX, LCD.height() / 2 - LCD.fontHeight(4) / 2, 4);
   LCD.setTextSize(1);
   LCD.setFreeFont(PRICE_FONT); // Select a font for last price display
+  PriceFontHeight = LCD.fontHeight(GFXFF) - PRICE_FONT_HEIGHT_ADJUSTMENT;
 
-  unsigned priceHeight = LCD.fontHeight(GFXFF) + LCD.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT);
+  unsigned priceHeight = PriceFontHeight + LCD.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT);
   if (MINIMUM_SEPARATABLE_HEIGHT < tftHeight - priceHeight) {
     dedicatedPriceAreaHeight = priceHeight;
     tftHeight -= priceHeight;
