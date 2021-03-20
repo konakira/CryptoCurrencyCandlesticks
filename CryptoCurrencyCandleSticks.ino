@@ -576,9 +576,6 @@ Currency::ShowChart(int yoff)
     
   itocsa(buf, PRICEBUFSIZE, highest);
 
-  // Serial.print("yoff = ");
-  // Serial.println(yoff);
-
   // draw candlesticks
   for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
     // draw vertical hour line
@@ -735,7 +732,7 @@ Currency::ShowCurrentPrice(int yoff)
   
   Serial.println("\n==== Starting connection to server...");
 
-  ShowUpdating(0 /* yoff */);
+  ShowUpdating(yoff);
 
   prevTime = prevTimeStamp;
   unsigned lastPriceOfOtherCurrency = currencies[cIndex == 0 ? 1 : 0].obtainLastPrice(&t);
@@ -839,7 +836,7 @@ Currency::ShowCurrentPrice(int yoff)
   }
   else {
     // show the chart
-    ShowChart(tftHeight);
+    ShowChart(yoff);
   }
 }
 
@@ -901,7 +898,7 @@ void SecProc()
 void
 _ShowCurrentPrice()
 {
-  currencies[cIndex].ShowCurrentPrice(0);
+  currencies[cIndex].ShowCurrentPrice(tftHeight);
 }
 
 void setup()
