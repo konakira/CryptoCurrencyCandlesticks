@@ -131,7 +131,8 @@ public:
   void obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp);
   void calcRelative();
   void ShowChart(int yoff);
-  void ShowCurrentPrice(int yoff);
+  void ShowCurrentPrice();
+  void GreyoutPrice();
   void SwitchCurrency();
   void ShowCurrencyName(char *buf, int yoff);
   void ShowUpdating(int yoff);
@@ -553,8 +554,6 @@ Currency::ShowChart(int yoff)
   }
 
   // show the chart
-  
-  LCD.fillScreen(TFT_BLACK);
 
 #define TFT_DARKBLUE        0x000F      /*   0,   0, 127 */
 
@@ -680,12 +679,27 @@ Currency::calcRelative()
 }
 
 void
-Currency::ShowCurrentPrice(int yoff)
+Currency::GreyoutPrice()
+{
+  char buf[PRICEBUFSIZE], buf2[PRICEBUFSIZE];
+
+  static int yoff = (1 < numScreens) ? tftHeight : 0; /// this is very temporal
+  // To be modified
+  
+  itocsa(buf, PRICEBUFSIZE, prevPrice);
+  ShowLastPrice(buf, pricePixel, TFT_DARKGREY, yoff); // make the price grey
+  snprintf(buf2, PRICEBUFSIZE, "%.5f", relative);
+  ShowRelativePrice(buf2, pricePixel, TFT_DARKGREY, yoff);
+}
+
+void
+Currency::ShowCurrentPrice()
 {
   unsigned long t; // for current time
   unsigned long prevTime;
   char buf[PRICEBUFSIZE], buf2[PRICEBUFSIZE];
   unsigned stickColor = TFT_DOWNRED, priceColor = TFT_GREEN;
+  unsigned another = (cIndex == 0 ? 1 : 0);
 
   if (0 < alertDuration) {
     return;
@@ -697,10 +711,10 @@ Currency::ShowCurrentPrice(int yoff)
     //WiFi.disconnect();
 
     // Grey out the price display
-    itocsa(buf, PRICEBUFSIZE, prevPrice);
-    ShowLastPrice(buf, pricePixel, TFT_DARKGREY, yoff); // make the price grey
-    snprintf(buf2, PRICEBUFSIZE, "%.5f", relative);
-    ShowRelativePrice(buf2, pricePixel, TFT_DARKGREY, yoff);
+    GreyoutPrice();
+    if (1 < numScreens) {
+      currencies[another].GreyoutPrice();
+    }
 
 #define CONNECTION_LOST "Reconnecting ..."
     LCD.setTextColor(TFT_WHITE, TFT_BLUE);
@@ -732,11 +746,11 @@ Currency::ShowCurrentPrice(int yoff)
   
   Serial.println("\n==== Starting connection to server...");
 
-  ShowUpdating(yoff);
+  ShowUpdating(1 < numScreens ? tftHeight : 0);
 
   prevTime = prevTimeStamp;
-  unsigned lastPriceOfOtherCurrency = currencies[cIndex == 0 ? 1 : 0].obtainLastPrice(&t);
   obtainLastPrice(&t);
+  unsigned lastPriceOfOtherCurrency = currencies[another].obtainLastPrice(&t);
   relative = (float)price / (float)lastPriceOfOtherCurrency;
   itocsa(buf, PRICEBUFSIZE, price);
   Serial.print("last price = ");
@@ -750,9 +764,9 @@ Currency::ShowCurrentPrice(int yoff)
     // is that time exceeds specified CANDLESTICK_WIDTH_MIN, so that, it is necessary to obtain candlesticks.
     obtainSticks(NUM_STICKS, t);
     // get data for another currency
-    unsigned another = (cIndex == 0 ? 1 : 0);
     currencies[another].obtainSticks(NUM_STICKS, t, candlesticks[NUM_STICKS - 1].timeStamp);
     calcRelative();
+    currencies[another].calcRelative();
   }
 
   SerialPrintTimestamp(candlesticks[NUM_STICKS - 1].timeStamp, TIMEZONE);
@@ -836,7 +850,11 @@ Currency::ShowCurrentPrice(int yoff)
   }
   else {
     // show the chart
-    ShowChart(yoff);
+    LCD.fillScreen(TFT_BLACK);
+    ShowChart(0);
+    if (1 < numScreens) {
+      currencies[another].ShowChart(tftHeight);
+    }
   }
 }
 
@@ -893,7 +911,7 @@ void SecProc()
 void
 _ShowCurrentPrice()
 {
-  currencies[cIndex].ShowCurrentPrice(tftHeight);
+  currencies[cIndex].ShowCurrentPrice();
 }
 
 #if !defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus) && !defined(ARDUINO_M5STACK_Core2)
