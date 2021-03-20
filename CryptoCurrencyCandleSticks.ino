@@ -941,6 +941,7 @@ void Currency::SwitchCurrency()
     else {
       dedicatedPriceAreaHeight = 0;
     }
+    tftHalfHeight = tftHeight / 2;
   }
 
   cIndex = 1 - cIndex; // (cIndex == 1) ? 0 : 1
