@@ -853,11 +853,6 @@ alertProc()
   }
 }
 
-void buttonEventProc()
-{
-  changeTriggered = true;
-}
-
 void Currency::SwitchCurrency()
 {
   char buf[PRICEBUFSIZE], buf2[PRICEBUFSIZE];
@@ -901,6 +896,13 @@ _ShowCurrentPrice()
   currencies[cIndex].ShowCurrentPrice(tftHeight);
 }
 
+#if !defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus) && !defined(ARDUINO_M5STACK_Core2)
+void buttonEventProc()
+{
+  changeTriggered = true;
+}
+#endif
+
 void setup()
 {
 #if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
@@ -910,10 +912,9 @@ void setup()
 #else
   // initialize TFT screen
   tft.init(); // equivalent to tft.begin();
+  Serial.begin(115200);
 #endif
 
-  Serial.begin(115200);
-  
   Serial.println("");
   Serial.println("CryptoCurrency candlestick chart display terminal started.");
 
@@ -955,15 +956,16 @@ void setup()
   }
   Serial.println(" Connected");
 
-  currencies[cIndex].ShowCurrentPrice(0);
-
   Serial.println("");
 
+#if !defined(ARDUINO_M5Stick_C_Plus) && !defined(ARDUINO_M5STACK_Core2)
   attachInterrupt(digitalPinToInterrupt(BUTTON1), buttonEventProc, FALLING);
   attachInterrupt(digitalPinToInterrupt(BUTTON2), buttonEventProc, FALLING);
+#endif
   
   timer.setInterval(1000, SecProc);
   timer.setInterval(60000, _ShowCurrentPrice);
+  _ShowCurrentPrice();
 }
 
 void loop()
