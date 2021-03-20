@@ -1,18 +1,16 @@
+#if defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5Stick_C)
+#include <M5StickCPlus.h>
+#else // !ARDUINO_M5Stick_C_Plus
+#ifdef ARDUINO_M5STACK_Core2
+#include <M5Core2.h>
+#else // !ARDUINO_M5STACK_Core2
+#include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
+#endif // !ARDUINO_M5STACK_Core2
+#endif // !ARDUINO_M5Stick_C_Plus
 // #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #define ARDUINOJSON_USE_LONG_LONG 1
 #include <ArduinoJson.h>
-//#define M5STICKCPLUS
-#define M5CORE2
-#ifdef M5STICKCPLUS
-#include <M5StickCPlus.h>
-#else // !M5StickCPlus
-#ifdef M5CORE2
-#include <M5Core2.h>
-#else // !M5CORE2
-#include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
-#endif // !M5CORE2
-#endif // !M5StickCPlus
 #include <SPI.h>
 #include <SimpleTimer.h>
 #include <TimeLib.h>
@@ -49,6 +47,12 @@ const char* bitbank_root_ca= \
 #define HORIZONTAL_RESOLUTION 240 // width of TTGO-T-display
 
 TFT_eSPI tft = TFT_eSPI();  // Invoke library, pins defined in User_Setup.h
+
+#if defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
+#define LCD M5.Lcd
+#else
+#define LCD tft
+#endif
 
 WiFiClientSecure client;
 
@@ -126,10 +130,10 @@ public:
   void obtainSticks(unsigned n, unsigned long t);
   void obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp);
   void calcRelative();
-  void ShowChart();
+  void ShowChart(int yoff);
   void ShowCurrentPrice();
   void SwitchCurrency();
-  void ShowCurrencyName(char *buf);
+  void ShowCurrencyName(char *buf, int yoff);
   void ShowUpdating();
 } currencies[2] = {{"ETH", "eth_jpy", 5000}, {"BTC", "btc_jpy", 100000}};
 
@@ -137,6 +141,7 @@ static unsigned cIndex = 0; // ETH by default.
 
 unsigned numScreens = 2;
 unsigned tftHeight = 0;
+unsigned tftWidth = 0;
 unsigned tftHalfHeight = 0;
 
 #define TIMEZONE (9 * 60 * 60)
@@ -452,16 +457,17 @@ ShowRelativePrice(char *buf, int lastPricePixel, unsigned priceColor)
 }
 
 void
-Currency::ShowCurrencyName(char *buf)
+Currency::ShowCurrencyName(char *buf, int yoff)
 {
   int textY;
   if (pricePixel < tftHalfHeight) {
-    textY = tftHeight - tft.fontHeight(2) * 2;
+    textY = tftHeight - LCD.fontHeight(2) * 2;
   }
   else {
-    textY = tft.fontHeight(2);
+    textY = LCD.fontHeight(2);
   }
-  tft.drawString(buf, tft.width() - tft.textWidth(buf, 2) - 1, textY, 2);
+  LCD.setTextColor(TFT_WHITE);
+  LCD.drawString(buf, tftWidth - tft.textWidth(buf, 2) - 1, textY + yoff, 2);
 }
 
 static char *updating = "Updating...";
@@ -536,7 +542,18 @@ floatmap(float val, float l, float h, int a, int b)
 }
 
 void
-Currency::ShowChart()
+DrawStringWithShade(char *buf, int x, int y, unsigned font, int color, int shade)
+{
+  LCD.setTextColor(TFT_BLACK);
+  LCD.drawString(buf, x - shade, y - shade, font);
+  LCD.drawString(buf, x + shade, y + shade, font);
+  LCD.setTextColor(color);
+  LCD.drawString(buf, x, y, font);
+}
+
+
+void
+Currency::ShowChart(int yoff)
 {
   char buf[PRICEBUFSIZE], buf2[PRICEBUFSIZE];
   unsigned stickColor = TFT_DOWNRED, priceColor = TFT_GREEN;
@@ -546,7 +563,8 @@ Currency::ShowChart()
   }
 
   // show the chart
-  tft.fillScreen(TFT_BLACK);
+  
+  LCD.fillScreen(TFT_BLACK);
 
 #define TFT_DARKBLUE        0x000F      /*   0,   0, 127 */
 
@@ -555,8 +573,8 @@ Currency::ShowChart()
     priceColor = TFT_RED;
   }
   for (unsigned i = lowest / priceline + 1 ; i * priceline < highest ; i++) {
-    unsigned y = map(i * priceline, lowest, highest, tftHeight, 0);
-    tft.drawFastHLine(0, y, tft.width(), TFT_DARKBLUE);
+    int y = map(i * priceline, lowest, highest, tftHeight, 0);
+    LCD.drawFastHLine(0, y + yoff, tftWidth, TFT_DARKBLUE);
   }
 
   // get the position to draw last price
@@ -568,26 +586,29 @@ Currency::ShowChart()
     
   itocsa(buf, PRICEBUFSIZE, highest);
 
+  // Serial.print("yoff = ");
+  // Serial.println(yoff);
+
   // draw candlesticks
   for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
     // draw vertical hour line
     unsigned curHour = hour(candlesticks[i].timeStamp + TIMEZONE);
     if (curHour != prevHour) {
       prevHour = curHour;
-      tft.drawFastVLine(i * 3 + 1, 0, tftHeight, TFT_DARKBLUE);
+      LCD.drawFastVLine(i * 3 + 1, yoff, tftHeight, TFT_DARKBLUE);
       if (curHour % 3 == 0) {
 	char bufHour[4];
 	snprintf(bufHour, sizeof(bufHour) - 1, "%d", curHour);
-	int offset = tft.textWidth(bufHour, 2) / 2;
-	if (i * 3 < tft.width() - tft.textWidth(buf, 2) - offset - PADX) {
+	int offset = LCD.textWidth(bufHour, 2) / 2;
+	if (i * 3 < tftWidth - LCD.textWidth(buf, 2) - offset - PADX) {
 	  // if we have enough space around vertical line, draw the time
 	  unsigned textY = 0;
 
 	  if (pricePixel < tftHalfHeight) {
-	    textY = tftHeight - tft.fontHeight(2);
+	    textY = tftHeight - LCD.fontHeight(2);
 	  }
-	  tft.setTextColor(TFT_CYAN);
-	  tft.drawNumber(curHour, i * 3 - offset, textY, 2);
+	  LCD.setTextColor(TFT_CYAN);
+	  LCD.drawNumber(curHour, i * 3 - offset, textY + yoff, 2);
 	}
       }
     }
@@ -595,7 +616,7 @@ Currency::ShowChart()
     if (0 < i) { // draw graph for relative prices
       unsigned curRel = floatmap(candlesticks[i].relative, lowestRelative, highestRelative,
 				 tftHeight, 0);
-      tft.drawLine(i * 3 - 2, prevRel, i * 3 + 1, curRel, TFT_ORANGE);
+      LCD.drawLine(i * 3 - 2, prevRel + yoff, i * 3 + 1, curRel + yoff, TFT_ORANGE);
       prevRel = curRel;
     }
 
@@ -618,39 +639,23 @@ Currency::ShowChart()
       stickColor = TFT_DOWNRED;
     }
 
-    tft.drawFastVLine(i * 3 + 1, highestPixel, lowestPixel - highestPixel, TFT_LIGHTGREY);
-    tft.fillRect(i * 3, highestPixel, 3, pixelHeight, stickColor);
+    LCD.drawFastVLine(i * 3 + 1, highestPixel + yoff, lowestPixel - highestPixel, TFT_LIGHTGREY);
+    LCD.fillRect(i * 3, highestPixel + yoff, 3, pixelHeight, stickColor);
   }
 
   // draw price horizontal line
-  unsigned stringWidth = tft.textWidth(buf, GFXFF) + PRICE_PAD_X;
-  tft.drawFastHLine(0, pricePixel, PRICE_MIN_X, priceColor);
-  tft.drawFastHLine(stringWidth, pricePixel, tft.width() - stringWidth, priceColor);
-  // tft.drawFastHLine(0, pricePixel, tft.width(), priceColor);
+  LCD.drawFastHLine(0, pricePixel + yoff, tftWidth, priceColor);
 
   // draw highest and lowest price in the chart
   itocsa(buf, PRICEBUFSIZE, highest);
-  tft.setTextColor(TFT_BLACK);
-  tft.drawString(buf, tft.width() - tft.textWidth(buf, 2) - 2, -1, 2);
-  tft.drawString(buf, tft.width() - tft.textWidth(buf, 2), 1, 2);
-  tft.setTextColor(TFT_WHITE);
-  tft.drawString(buf, tft.width() - tft.textWidth(buf, 2) - 1, 0, 2);
+  DrawStringWithShade(buf, tftWidth - LCD.textWidth(buf, 2) - 1, yoff, 2, TFT_WHITE, 1);
 
   itocsa(buf, PRICEBUFSIZE, lowest);
-  tft.setTextColor(TFT_BLACK);
-  tft.drawString(buf,
-		 tft.width() - tft.textWidth(buf, 2) - 2,
-		 tftHeight - tft.fontHeight(2) - 1, 2);
-  tft.drawString(buf,
-		 tft.width() - tft.textWidth(buf, 2),
-		 tftHeight - tft.fontHeight(2) + 1, 2);
-  tft.setTextColor(TFT_WHITE);
-  tft.drawString(buf,
-		 tft.width() - tft.textWidth(buf, 2) - 1,
-		 tftHeight - tft.fontHeight(2), 2);
+
+  DrawStringWithShade(buf, tftWidth - LCD.textWidth(buf, 2) - 1, tftHeight + yoff, 2, TFT_WHITE, 1);
 
   // show currency name
-  ShowCurrencyName(name);
+  ShowCurrencyName(name, yoff);
   
   // draw last price
   itocsa(buf, PRICEBUFSIZE, price);
@@ -844,7 +849,7 @@ Currency::ShowCurrentPrice()
   }
   else {
     // show the chart
-    ShowChart();
+    ShowChart(tftHeight);
   }
 }
 
@@ -856,7 +861,7 @@ alertProc()
     alertDuration--;
     if (alertDuration == 0) {
       timer.deleteTimer(Alert.alertId);
-      currencies[cIndex].ShowChart();
+      currencies[cIndex].ShowChart(0);
     }
   }
 }
@@ -892,7 +897,7 @@ void Currency::SwitchCurrency()
 
   currencies[cIndex].relative = 1 / relative;
   currencies[cIndex].calcRelative();
-  currencies[cIndex].ShowChart();
+  currencies[cIndex].ShowChart(0);
 }
 
 void SecProc()
@@ -911,18 +916,13 @@ _ShowCurrentPrice()
 
 void setup()
 {
-#if defined(M5STICKCPLUS) || defined(M5CORE2)
+#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
   // initialize the M5StickC object
   M5.begin();
-  delay(100);
-#endif
-
+  delay(500);
+#else
   // initialize TFT screen
   tft.init(); // equivalent to tft.begin();
-#ifdef M5CORE2
-  tft.setRotation(0); // set it to 1 or 3 for landscape resolution
-#else
-  tft.setRotation(1); // set it to 1 or 3 for landscape resolution
 #endif
 
   Serial.begin(115200);
@@ -930,19 +930,30 @@ void setup()
   Serial.println("");
   Serial.println("CryptoCurrency candlestick chart display terminal started.");
 
+#ifdef ARDUINO_M5STACK_Core2
+  M5.Lcd.setRotation(0); // set it to 1 or 3 for landscape resolution
+  // tft.setRotation(0); // set it to 1 or 3 for landscape resolution
+  tftHeight = M5.Lcd.height() / numScreens;
+  tftWidth = M5.Lcd.width();
+  M5.Lcd.fillScreen(BLACK);
+#else
+  tft.setRotation(1); // set it to 1 or 3 for landscape resolution
   tftHeight = tft.height() / numScreens;
+  tftWidth = tft.width();
+#endif
+
 
   Serial.print("tftHeight = ");
   Serial.println(tftHeight);
   
   tftHalfHeight = tftHeight / 2;
-  
-  tft.fillScreen(TFT_BLUE);
-  tft.setTextColor(TFT_WHITE);
-  tft.setTextPadding(PADX); // seems no effect by this line.
-  tft.drawString("Connecting ...",
-		 PADX, tft.height() / 2 - tft.fontHeight(4) / 2, 4);
-  tft.setTextSize(1);
+
+  LCD.fillScreen(TFT_BLUE);
+  LCD.setTextColor(TFT_WHITE);
+  LCD.setTextPadding(PADX); // seems no effect by this line.
+  LCD.drawString("Connecting ...",
+		 LCD.padX, LCD.height() / 2 - LCD.fontHeight(4) / 2, 4);
+  LCD.setTextSize(1);
   tft.setFreeFont(PRICE_FONT); // Select a font for last price display
 
   Serial.print("Attempting to connect to WiFi ");
@@ -971,7 +982,7 @@ void setup()
 
 void loop()
 {
-#if defined(M5STICKCPLUS) || defined(M5CORE2)
+#if defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
   M5.update();
   if (M5.BtnA.wasPressed() || M5.BtnB.wasPressed()) {
     changeTriggered = true;
