@@ -105,7 +105,8 @@ itocsa(char *buf, unsigned bufsiz, unsigned n)
 class Currency {
 public:
   char *name, *pair;
-  unsigned priceline;
+  int priceline;
+  unsigned another = 0;
   struct {
     unsigned startPrice, endPrice, lowestPrice, highestPrice;
     float relative;
@@ -474,7 +475,7 @@ ShowLastPrice(char *buf, int lastPricePixel, unsigned priceColor, int yoff)
 #define BASE_DIFF 4
 
 void
-ShowRelativePrice(char *buf, int lastPricePixel, unsigned priceColor, int yoff)
+ShowRelativePrice(char *buf, char *name, int lastPricePixel, unsigned priceColor, int yoff)
 {
   int textY;
 
@@ -497,7 +498,7 @@ ShowRelativePrice(char *buf, int lastPricePixel, unsigned priceColor, int yoff)
     }
   }
   DrawStringWithShade(buf, 0, textY + yoff, OTHER_CURRENCY_BASE_VALUE_FONT, priceColor, BORDER_WIDTH);
-  DrawStringWithShade(currencies[1 - cIndex].name,
+  DrawStringWithShade(name,
 		      PADX + LCD.textWidth(buf, OTHER_CURRENCY_BASE_VALUE_FONT),
 		      textY + yoff + LCD.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT) - LCD.fontHeight(2) - BASE_DIFF, 2, priceColor, BORDER_WIDTH);
 }
@@ -601,12 +602,19 @@ Currency::ShowChart(int yoff)
 #define TFT_DARKBLUE        0x000F      /*   0,   0, 127 */
 
   yoff += dedicatedPriceAreaHeight;
+
+  if (highest < price) {
+    highest = price;
+  }
+  else if (price < lowest) {
+    lowest = price;
+  }
   
   // draw horizontal price lines
   if (price < prevPrice) {
     priceColor = TFT_RED;
   }
-  for (unsigned i = lowest / priceline + 1 ; i * priceline < highest ; i++) {
+  for (int i = lowest / priceline + 1 ; i * priceline < highest ; i++) {
     int y = map(i * priceline, lowest, highest, tftHeight, 0);
     LCD.drawFastHLine(0, y + yoff, tftWidth, TFT_DARKBLUE);
   }
@@ -698,14 +706,13 @@ Currency::ShowChart(int yoff)
   yoff -= dedicatedPriceAreaHeight;
   ShowLastPrice(buf, pricePixel, priceColor, yoff);
   snprintf(buf2, PRICEBUFSIZE, "%.5f", relative);
-  ShowRelativePrice(buf2, pricePixel, relative < prevRelative ? TFT_RED: TFT_GREEN, yoff);
+  ShowRelativePrice(buf2, currencies[another].name, pricePixel,
+		    relative < prevRelative ? TFT_RED: TFT_GREEN, yoff);
 }
 
 void
 Currency::calcRelative()
 {
-  unsigned another = 1 - cIndex; // (cIndex == 1) ? 0 : 1
-
   highestRelative = lowestRelative = candlesticks[0].relative =
     (float)candlesticks[0].endPrice / (float)currencies[another].candlesticks[0].endPrice;
   // Do the same for another currency
@@ -749,7 +756,7 @@ Currency::GreyoutPrice()
   itocsa(buf, PRICEBUFSIZE, prevPrice);
   ShowLastPrice(buf, pricePixel, TFT_DARKGREY, yoff); // make the price grey
   snprintf(buf2, PRICEBUFSIZE, "%.5f", relative);
-  ShowRelativePrice(buf2, pricePixel, TFT_DARKGREY, yoff);
+  ShowRelativePrice(buf2, currencies[another].name, pricePixel, TFT_DARKGREY, yoff);
 }
 
 void
@@ -829,8 +836,6 @@ Currency::ShowCurrentPrice()
   unsigned long prevTime;
   char buf[PRICEBUFSIZE], buf2[PRICEBUFSIZE];
   unsigned stickColor = TFT_DOWNRED, priceColor = TFT_GREEN;
-  unsigned another = 1 - cIndex; // (cIndex == 1) ? 0 : 1
-
 
   if (0 < alertDuration) {
     return;
@@ -952,8 +957,6 @@ alertProc()
 
 void Currency::SwitchCurrency()
 {
-  unsigned another = cIndex;
-    
   Serial.println("Change triggered.");
 
   if (cIndex == 1 && MINIMUM_SPLITTABLE_HEIGHT < LCD.height()) {
@@ -975,7 +978,7 @@ void Currency::SwitchCurrency()
   LCD.fillScreen(TFT_BLACK);
   currencies[cIndex].ShowChart(0);
   if (1 < numScreens) {
-    currencies[another].ShowChart(tftHeight);
+    currencies[1 - cIndex].ShowChart(tftHeight);
   }
 }
 
@@ -1037,6 +1040,8 @@ void setup()
 
   numSticks =
     ((tftWidth < HORIZONTAL_RESOLUTION) ? tftWidth : HORIZONTAL_RESOLUTION) / STICK_WIDTH;
+
+  currencies[0].another = 1;
 
   Serial.print("tftHeight = ");
   Serial.println(tftHeight);
