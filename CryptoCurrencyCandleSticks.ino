@@ -501,14 +501,14 @@ Currency::ShowUpdating(int yoff)
 {
   int textY;
   if (pricePixel < tftHalfHeight) {
-    textY = tftHeight - LCD.fontHeight(2) * 2;
+    textY = tftHeight - LCD.fontHeight(2) * 2 + yoff;
   }
   else {
     textY = LCD.fontHeight(2);
   }
   LCD.setTextColor(TFT_WHITE, TFT_BLUE);
   LCD.drawString(updating, tftWidth - LCD.textWidth(updating, 2) - 1,
-		 textY + yoff + dedicatedPriceAreaHeight, 2);
+		 textY + dedicatedPriceAreaHeight, 2);
 }
 
 class alert {
