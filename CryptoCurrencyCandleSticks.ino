@@ -44,7 +44,7 @@ const char* bitbank_root_ca= \
      "WQPJIrSPnNVeKtelttQKbfi3QBFGmh95DmK/D5fs4C8fF5Q=\n" \
      "-----END CERTIFICATE-----\n";
 
-#define HORIZONTAL_RESOLUTION 240 // width of TTGO-T-display
+#define HORIZONTAL_RESOLUTION 321
 
 TFT_eSPI tft = TFT_eSPI();  // Invoke library, pins defined in User_Setup.h
 
@@ -147,11 +147,12 @@ unsigned tftWidth = 0;
 unsigned tftHalfHeight = 0;
 unsigned dedicatedPriceAreaHeight = 0;
 unsigned PriceFontHeight = 0;
+unsigned numSticks = 1;
 
 #define PRICE_FONT_HEIGHT_ADJUSTMENT 10
 #define TIMEZONE (9 * 60 * 60)
 #define MINIMUM_SPLITTABLE_HEIGHT 239 // for splitting screen into dual one
-#define MINIMUM_SEPARATABLE_HEIGHT 200 // for price and chart seperation
+#define MINIMUM_SEPARATABLE_HEIGHT 150 // for price and chart seperation
 
 void
 Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
@@ -222,28 +223,28 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
 
 	if (success) {
 	  JsonArray ohlcv = doc["data"]["candlestick"][0]["ohlcv"];
-	  unsigned numSticks = ohlcv.size();
+	  unsigned nSticks = ohlcv.size();
 
 	  // Serial.print("Success = ");
 	  // Serial.println(success);
 
 	  if (0 < lastTimeStamp) { // skip newer candlestick if any.
-	    for (int i = numSticks - 1 ; 0 < i ; i--) {
+	    for (int i = nSticks - 1 ; 0 < i ; i--) {
 	      // this may just remove one data at most
 	      if ((unsigned long)(ohlcv[i][5].as<unsigned long long>() / 1000) <= lastTimeStamp) {
-		numSticks = i + 1;
+		nSticks = i + 1;
 		break;
 	      }
 	    }
 	  }
 	
 	  Serial.print("Number of sticks = ");
-	  Serial.print(numSticks);
-	  if (n <= numSticks) { // enough sticks obtained
+	  Serial.print(nSticks);
+	  if (n <= nSticks) { // enough sticks obtained
 	    Serial.println(" (enough)");
 	    for (unsigned i = 0 ; i < n ; i++) {
 	      // copy the last n data from JSON
-	      unsigned ohlcvIndex = i + numSticks - n;
+	      unsigned ohlcvIndex = i + nSticks - n;
 	      candlesticks[i].startPrice = ohlcv[ohlcvIndex][0].as<unsigned>();
 	      candlesticks[i].highestPrice = ohlcv[ohlcvIndex][1].as<unsigned>();
 	      candlesticks[i].lowestPrice = ohlcv[ohlcvIndex][2].as<unsigned>();
@@ -255,9 +256,9 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
 	  }
 	  else {
 	    Serial.println(" (not enough)");
-	    for (unsigned i = 0 ; i < numSticks ; i++) {
+	    for (unsigned i = 0 ; i < nSticks ; i++) {
 	      // copy the all n data from JSON
-	      unsigned stickIndex = i + n - numSticks;
+	      unsigned stickIndex = i + n - nSticks;
 	      candlesticks[stickIndex].startPrice = ohlcv[i][0].as<unsigned>();
 	      candlesticks[stickIndex].highestPrice = ohlcv[i][1].as<unsigned>();
 	      candlesticks[stickIndex].lowestPrice = ohlcv[i][2].as<unsigned>();
@@ -265,7 +266,7 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
 	      candlesticks[stickIndex].timeStamp =
 		(unsigned long)(ohlcv[i][5].as<unsigned long long>() / 1000);
 	    }
-	    n -= numSticks; // to fill remaining slots
+	    n -= nSticks; // to fill remaining slots
 	    t -= 24 * 60 * 60; // for data one day before
 	  }
 	}
@@ -279,7 +280,7 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
   // obtaining chart's high and low
   lowest = candlesticks[0].lowestPrice; // chart's low
   highest = candlesticks[0].highestPrice; // chart's high
-  for (unsigned i = 1 ; i < NUM_STICKS ; i++) {
+  for (unsigned i = 1 ; i < numSticks ; i++) {
     if (candlesticks[i].lowestPrice < lowest) {
       lowest = candlesticks[i].lowestPrice;
     }
@@ -288,9 +289,9 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
     }
   }
   if (todayshigh == 0) { // if 'todayshigh' is not set
-    unsigned today = day(candlesticks[NUM_STICKS - 1].timeStamp + TIMEZONE);
+    unsigned today = day(candlesticks[numSticks - 1].timeStamp + TIMEZONE);
     
-    for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
+    for (unsigned i = 0 ; i < numSticks ; i++) {
       if (day(candlesticks[i].timeStamp + TIMEZONE) == today) {
 	if (todayshigh == 0) {
 	  todayshigh = candlesticks[i].highestPrice;
@@ -620,7 +621,7 @@ Currency::ShowChart(int yoff)
   itocsa(buf, PRICEBUFSIZE, highest);
 
   // draw candlesticks
-  for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
+  for (unsigned i = 0 ; i < numSticks ; i++) {
     // draw vertical hour line
     unsigned curHour = hour(candlesticks[i].timeStamp + TIMEZONE);
     if (curHour != prevHour) {
@@ -711,7 +712,7 @@ Currency::calcRelative()
   currencies[another].highestRelative = currencies[another].lowestRelative =
     currencies[another].candlesticks[0].relative =
     (float)currencies[another].candlesticks[0].endPrice / (float)candlesticks[0].endPrice;
-  for (unsigned i = 1 ; i < NUM_STICKS ; i++) {
+  for (unsigned i = 1 ; i < numSticks ; i++) {
     float re = 0.0;
     if (0 < currencies[another].candlesticks[i].endPrice) {
       re = (float)candlesticks[i].endPrice / (float)currencies[another].candlesticks[i].endPrice;
@@ -773,30 +774,30 @@ Currency::setAlert(class alert a)
   }
 
   // not event but set today's high and low properly
-  if (todayshigh < candlesticks[NUM_STICKS - 1].highestPrice) {
-    todayshigh = candlesticks[NUM_STICKS - 1].highestPrice;
+  if (todayshigh < candlesticks[numSticks - 1].highestPrice) {
+    todayshigh = candlesticks[numSticks - 1].highestPrice;
   }
-  if (candlesticks[NUM_STICKS - 1].lowestPrice < todayslow) {
-    todayslow = candlesticks[NUM_STICKS - 1].lowestPrice;
+  if (candlesticks[numSticks - 1].lowestPrice < todayslow) {
+    todayslow = candlesticks[numSticks - 1].lowestPrice;
   }
 
   // five minutes significant price change
-  if (prevCandlestickTimestamp != candlesticks[NUM_STICKS - 1].timeStamp &&
+  if (prevCandlestickTimestamp != candlesticks[numSticks - 1].timeStamp &&
 	   FIVEMINUTES_THRESHOLD <=
-	   abs((long)candlesticks[NUM_STICKS -1].startPrice - (long)candlesticks[NUM_STICKS -1].endPrice)
-	   * 100 / (long)candlesticks[NUM_STICKS - 1].startPrice) {
-    prevCandlestickTimestamp = candlesticks[NUM_STICKS - 1].timeStamp;
-    if (candlesticks[NUM_STICKS - 1].startPrice < candlesticks[NUM_STICKS - 1].endPrice) {
+	   abs((long)candlesticks[numSticks -1].startPrice - (long)candlesticks[numSticks -1].endPrice)
+	   * 100 / (long)candlesticks[numSticks - 1].startPrice) {
+    prevCandlestickTimestamp = candlesticks[numSticks - 1].timeStamp;
+    if (candlesticks[numSticks - 1].startPrice < candlesticks[numSticks - 1].endPrice) {
       Alert.setBackColor(TFT_UPGREEN);
       snprintf(Alert.mesgbuf, MESGSIZE, "%.1f%% up within",
-	       (float)(candlesticks[NUM_STICKS -1 ].endPrice - candlesticks[NUM_STICKS - 1].startPrice) * 100.0
-	       / (float)candlesticks[NUM_STICKS - 1].startPrice);
+	       (float)(candlesticks[numSticks -1 ].endPrice - candlesticks[numSticks - 1].startPrice) * 100.0
+	       / (float)candlesticks[numSticks - 1].startPrice);
     }
     else {
       Alert.setBackColor(TFT_DOWNRED);
       snprintf(Alert.mesgbuf, MESGSIZE, "%.1f%% down within",
-	       (float)(candlesticks[NUM_STICKS -1 ].startPrice - candlesticks[NUM_STICKS - 1].endPrice) * 100.0
-	       / (float)candlesticks[NUM_STICKS - 1].startPrice); 
+	       (float)(candlesticks[numSticks -1 ].startPrice - candlesticks[numSticks - 1].endPrice) * 100.0
+	       / (float)candlesticks[numSticks - 1].startPrice); 
     }
     Alert.setMesg1(Alert.mesgbuf);
     Alert.setMesg2("5 minutes.");
@@ -895,17 +896,17 @@ Currency::ShowCurrentPrice()
     // I forgot what '0 < price' means
     // Meaning of '(minute(prevTimeStamp) % CANDLESTICK_WIDTH_MIN) < (minute(prevTime) % CANDLESTICK_WIDTH_MIN)'
     // is that time exceeds specified CANDLESTICK_WIDTH_MIN, so that, it is necessary to obtain candlesticks.
-    obtainSticks(NUM_STICKS, t);
+    obtainSticks(numSticks, t);
     // get data for another currency
-    currencies[another].obtainSticks(NUM_STICKS, t, candlesticks[NUM_STICKS - 1].timeStamp);
+    currencies[another].obtainSticks(numSticks, t, candlesticks[numSticks - 1].timeStamp);
     calcRelative();
     // currencies[another].calcRelative();
   }
 
-  SerialPrintTimestamp(candlesticks[NUM_STICKS - 1].timeStamp, TIMEZONE);
+  SerialPrintTimestamp(candlesticks[numSticks - 1].timeStamp, TIMEZONE);
 
   Serial.print("Vertical price line in pixel = ");
-  Serial.println(map(candlesticks[NUM_STICKS - 1].endPrice, lowest, highest, tftHeight, 0));
+  Serial.println(map(candlesticks[numSticks - 1].endPrice, lowest, highest, tftHeight, 0));
 
   // check events...
   // last event has the highest priority
@@ -1021,7 +1022,7 @@ void setup()
 
 #if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
 #ifdef ARDUINO_M5STACK_Core2
-  M5.Lcd.setRotation(0); // set it to 1 or 3 for landscape resolution
+  M5.Lcd.setRotation(1); // set it to 1 or 3 for landscape resolution
 #else
   M5.Lcd.setRotation(1); // set it to 1 or 3 for landscape resolution
 #endif
@@ -1034,6 +1035,8 @@ void setup()
   tftWidth = tft.width();
 #endif
 
+  numSticks =
+    ((tftWidth < HORIZONTAL_RESOLUTION) ? tftWidth : HORIZONTAL_RESOLUTION) / STICK_WIDTH;
 
   Serial.print("tftHeight = ");
   Serial.println(tftHeight);
