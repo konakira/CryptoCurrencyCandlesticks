@@ -470,7 +470,7 @@ Currency::ShowCurrencyName(char *buf, int yoff)
     textY = LCD.fontHeight(2);
   }
   LCD.setTextColor(TFT_WHITE);
-  LCD.drawString(buf, tftWidth - tft.textWidth(buf, 2) - 1, textY + yoff, 2);
+  LCD.drawString(buf, tftWidth - LCD.textWidth(buf, 2) - 1, textY + yoff, 2);
 }
 
 static char *updating = "Updating...";
@@ -506,26 +506,24 @@ public:
     lastPrice = p;
   }
   void beginAlert() {
-    tft.fillScreen(alertbgcolor);
-    tft.setTextColor(TFT_WHITE);
+    LCD.fillScreen(alertbgcolor);
+    LCD.setTextColor(TFT_WHITE);
     itocsa(buf, PRICEBUFSIZE, lastPrice);
     textColor = TFT_WHITE;
     showAlert();
   }
   void flashAlert() {
-    // tft.invertDisplay(false);
-    // invert text color
     textColor = (textColor == TFT_WHITE) ? TFT_BLACK : TFT_WHITE;
-    tft.setTextColor(textColor);
+    LCD.setTextColor(textColor);
     showAlert();
   }
 private:
   void showAlert() {
-    tft.drawString(alertmesg1, PADX, PADY, 4);
-    tft.drawString(alertmesg2, PADX, tft.fontHeight(4) + PADY, 4);
-    tft.drawString(buf,
-		   tft.width() / 2 - tft.textWidth(buf, GFXFF) / 2,
-		   tftHeight - tft.fontHeight(GFXFF), GFXFF);
+    LCD.drawString(alertmesg1, PADX, PADY, 4);
+    LCD.drawString(alertmesg2, PADX, LCD.fontHeight(4) + PADY, 4);
+    LCD.drawString(buf,
+		   tftWidth / 2 - LCD.textWidth(buf, GFXFF) / 2,
+		   tftHeight - LCD.fontHeight(GFXFF), GFXFF);
   }
   char buf[PRICEBUFSIZE];
   char *alertmesg1;
@@ -708,10 +706,10 @@ Currency::ShowCurrentPrice(int yoff)
     ShowRelativePrice(buf2, pricePixel, TFT_DARKGREY, yoff);
 
 #define CONNECTION_LOST "Reconnecting ..."
-    tft.setTextColor(TFT_WHITE, TFT_BLUE);
-    tft.drawString(CONNECTION_LOST,
-		   tft.width() / 2 - tft.textWidth(CONNECTION_LOST, 4) / 2,
-		   tftHalfHeight - tft.fontHeight(4) / 2, 4);
+    LCD.setTextColor(TFT_WHITE, TFT_BLUE);
+    LCD.drawString(CONNECTION_LOST,
+		   tftWidth / 2 - LCD.textWidth(CONNECTION_LOST, 4) / 2,
+		   tftHalfHeight - LCD.fontHeight(4) / 2, 4);
     
     Serial.print("WiFi connection was lost.\nAttempting to reconnect to WiFi ");
     // WiFi.begin(WIFIAP, WIFIPW);
@@ -880,10 +878,10 @@ void Currency::SwitchCurrency()
   ShowRelativePrice(buf2, pricePixel, TFT_DARKGREY, 0/* yoff */);
 
 #define SWITCHING "Switching ..."
-  tft.setTextColor(TFT_WHITE, TFT_BLUE);
-  tft.drawString(SWITCHING,
-		 tft.width() / 2 - tft.textWidth(SWITCHING, 4) / 2,
-		 tftHalfHeight - tft.fontHeight(4) / 2, 4);
+  LCD.setTextColor(TFT_WHITE, TFT_BLUE);
+  LCD.drawString(SWITCHING,
+		 tftWidth / 2 - LCD.textWidth(SWITCHING, 4) / 2,
+		 tftHalfHeight - LCD.fontHeight(4) / 2, 4);
   
   cIndex = (cIndex == 0) ? 1 : 0;
 
@@ -924,7 +922,6 @@ void setup()
 
 #ifdef ARDUINO_M5STACK_Core2
   M5.Lcd.setRotation(0); // set it to 1 or 3 for landscape resolution
-  // tft.setRotation(0); // set it to 1 or 3 for landscape resolution
   tftHeight = M5.Lcd.height() / numScreens;
   tftWidth = M5.Lcd.width();
   M5.Lcd.fillScreen(BLACK);
