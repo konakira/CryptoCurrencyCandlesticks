@@ -601,7 +601,9 @@ Currency::ShowChart(int yoff)
 
     if (0 < i) { // draw graph for relative prices
       unsigned curRel = floatmap(candlesticks[i].relative, lowestRelative, highestRelative,
-				 tftHeight, 0);
+				 tftHeight- 1, 2);
+      // note that the lowest pixel is 2, instead of 0 to prevent collision in
+      // dual screen mode
       LCD.drawLine(i * 3 - 2, prevRel + yoff, i * 3 + 1, curRel + yoff, TFT_ORANGE);
       prevRel = curRel;
     }
@@ -638,7 +640,8 @@ Currency::ShowChart(int yoff)
 
   itocsa(buf, PRICEBUFSIZE, lowest);
 
-  DrawStringWithShade(buf, tftWidth - LCD.textWidth(buf, 2) - 1, tftHeight + yoff, 2, TFT_WHITE, 1);
+  DrawStringWithShade(buf, tftWidth - LCD.textWidth(buf, 2) - 1,
+		      tftHeight + yoff - LCD.fontHeight(2), 2, TFT_WHITE, 1);
 
   // show currency name
   ShowCurrencyName(name, yoff);
@@ -660,20 +663,34 @@ Currency::calcRelative()
 {
   unsigned another = (cIndex == 0 ? 1 : 0);
 
-  highestRelative = lowestRelative = 
-    candlesticks[0].relative = (float)candlesticks[0].endPrice / (float)currencies[another].candlesticks[0].endPrice;
+  highestRelative = lowestRelative = candlesticks[0].relative =
+    (float)candlesticks[0].endPrice / (float)currencies[another].candlesticks[0].endPrice;
+  // Do the same for another currency
+  currencies[another].highestRelative = currencies[another].lowestRelative =
+    currencies[another].candlesticks[0].relative =
+    (float)currencies[another].candlesticks[0].endPrice / (float)candlesticks[0].endPrice;
   for (unsigned i = 1 ; i < NUM_STICKS ; i++) {
     float re = 0.0;
     if (0 < currencies[another].candlesticks[i].endPrice) {
       re = (float)candlesticks[i].endPrice / (float)currencies[another].candlesticks[i].endPrice;
     }
-
     candlesticks[i].relative = re;
     if (re < lowestRelative) {
       lowestRelative = re;
     }
     if (highestRelative < re) {
       highestRelative = re;
+    }
+    // Do the same for another currency
+    if (0 < candlesticks[i].endPrice) {
+      re = (float)currencies[another].candlesticks[i].endPrice / (float)candlesticks[i].endPrice;
+    }
+    currencies[another].candlesticks[i].relative = re;
+    if (re < currencies[another].lowestRelative) {
+      currencies[another].lowestRelative = re;
+    }
+    if (currencies[another].highestRelative < re) {
+      currencies[another].highestRelative = re;
     }
   }
 }
@@ -752,6 +769,7 @@ Currency::ShowCurrentPrice()
   obtainLastPrice(&t);
   unsigned lastPriceOfOtherCurrency = currencies[another].obtainLastPrice(&t);
   relative = (float)price / (float)lastPriceOfOtherCurrency;
+  currencies[another].relative = (float)lastPriceOfOtherCurrency / (float)price;
   itocsa(buf, PRICEBUFSIZE, price);
   Serial.print("last price = ");
   Serial.println(buf);
@@ -766,7 +784,7 @@ Currency::ShowCurrentPrice()
     // get data for another currency
     currencies[another].obtainSticks(NUM_STICKS, t, candlesticks[NUM_STICKS - 1].timeStamp);
     calcRelative();
-    currencies[another].calcRelative();
+    // currencies[another].calcRelative();
   }
 
   SerialPrintTimestamp(candlesticks[NUM_STICKS - 1].timeStamp, TIMEZONE);
