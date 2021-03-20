@@ -656,7 +656,6 @@ Currency::ShowChart(int yoff)
   snprintf(buf2, PRICEBUFSIZE, "%.5f", relative);
   ShowRelativePrice(buf2, pricePixel,
 		    relative < prevRelative ? TFT_RED: TFT_GREEN, yoff);
-  prevRelative = relative;
 }
 
 void
@@ -770,7 +769,9 @@ Currency::ShowCurrentPrice()
   prevTime = prevTimeStamp;
   obtainLastPrice(&t);
   unsigned lastPriceOfOtherCurrency = currencies[another].obtainLastPrice(&t);
+  prevRelative = relative;
   relative = (float)price / (float)lastPriceOfOtherCurrency;
+  currencies[another].prevRelative = currencies[another].relative;
   currencies[another].relative = (float)lastPriceOfOtherCurrency / (float)price;
   itocsa(buf, PRICEBUFSIZE, price);
   Serial.print("last price = ");
@@ -886,7 +887,11 @@ alertProc()
     alertDuration--;
     if (alertDuration == 0) {
       timer.deleteTimer(Alert.alertId);
+      LCD.fillScreen(TFT_BLACK);
       currencies[cIndex].ShowChart(0);
+      if (1 < numScreens) {
+	currencies[1 - cIndex].ShowChart(tftHeight);
+      }
     }
   }
 }
