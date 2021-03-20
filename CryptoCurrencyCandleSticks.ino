@@ -528,7 +528,9 @@ public:
     lastPrice = p;
   }
   void beginAlert() {
-    LCD.fillScreen(alertbgcolor);
+    //LCD.fillScreen(alertbgcolor);
+    LCD.fillRect(0, 1 < numScreens ? tftHeight : 0 + dedicatedPriceAreaHeight,
+		 tftWidth, tftHeight, alertbgcolor);
     LCD.setTextColor(TFT_WHITE);
     itocsa(buf, PRICEBUFSIZE, lastPrice);
     textColor = TFT_WHITE;
@@ -541,11 +543,13 @@ public:
   }
 private:
   void showAlert() {
-    LCD.drawString(alertmesg1, PADX, PADY, 4);
-    LCD.drawString(alertmesg2, PADX, LCD.fontHeight(4) + PADY, 4);
+    unsigned yoff = 1 < numScreens ? tftHeight : 0 + dedicatedPriceAreaHeight;
+
+    LCD.drawString(alertmesg1, PADX, PADY + yoff, 4);
+    LCD.drawString(alertmesg2, PADX, LCD.fontHeight(4) + PADY + yoff, 4);
     LCD.drawString(buf,
 		   tftWidth / 2 - LCD.textWidth(buf, GFXFF) / 2,
-		   tftHeight - PriceFontHeight, GFXFF);
+		   tftHeight - PriceFontHeight + yoff, GFXFF);
   }
   char buf[PRICEBUFSIZE];
   char *alertmesg1;
@@ -569,10 +573,6 @@ Currency::ShowChart(int yoff)
 {
   char buf[PRICEBUFSIZE], buf2[PRICEBUFSIZE];
   unsigned stickColor = TFT_DOWNRED, priceColor = TFT_GREEN;
-
-  if (0 < alertDuration) {
-    return;
-  }
 
   // show the chart
 
@@ -894,6 +894,10 @@ Currency::ShowCurrentPrice()
 
   if (0 < alertDuration) {
     Alert.setLastPrice(price);
+    if (1 < numScreens || 0 < dedicatedPriceAreaHeight) {
+      LCD.fillScreen(TFT_BLACK);
+      ShowChart(0);
+    }
     Alert.beginAlert();
     Alert.alertId = timer.setTimer(ALERT_INTERVAL, alertProc, ALERT_DURATION * (1000 / ALERT_INTERVAL) + 1);
   }
@@ -913,13 +917,13 @@ alertProc()
   if (0 < alertDuration) {
     Alert.flashAlert();
     alertDuration--;
-    if (alertDuration == 0) {
-      timer.deleteTimer(Alert.alertId);
-      LCD.fillScreen(TFT_BLACK);
-      currencies[cIndex].ShowChart(0);
-      if (1 < numScreens) {
-	currencies[1 - cIndex].ShowChart(tftHeight);
-      }
+  }
+  if (alertDuration == 0) {
+    timer.deleteTimer(Alert.alertId);
+    LCD.fillScreen(TFT_BLACK);
+    currencies[cIndex].ShowChart(0);
+    if (1 < numScreens) {
+      currencies[1 - cIndex].ShowChart(tftHeight);
     }
   }
 }
@@ -927,8 +931,6 @@ alertProc()
 void Currency::SwitchCurrency()
 {
   unsigned another = cIndex;
-  // clear global variables..
-  alertDuration = 0;
     
   Serial.println("Change triggered.");
 
@@ -972,7 +974,12 @@ _ShowCurrentPrice()
 #if !defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus) && !defined(ARDUINO_M5STACK_Core2)
 void buttonEventProc()
 {
-  changeTriggered = true;
+  if (0 < alertDuration) {
+    alertDuration = 0;
+  }
+  else {
+    changeTriggered = true;
+  }
 }
 #endif
 
@@ -991,8 +998,12 @@ void setup()
   Serial.println("");
   Serial.println("CryptoCurrency candlestick chart display terminal started.");
 
+#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
 #ifdef ARDUINO_M5STACK_Core2
   M5.Lcd.setRotation(0); // set it to 1 or 3 for landscape resolution
+#else
+  M5.Lcd.setRotation(1); // set it to 1 or 3 for landscape resolution
+#endif
   tftHeight = M5.Lcd.height() / numScreens;
   tftWidth = M5.Lcd.width();
   M5.Lcd.fillScreen(BLACK);
@@ -1053,7 +1064,12 @@ void loop()
 #if defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
   M5.update();
   if (M5.BtnA.wasPressed() || M5.BtnB.wasPressed()) {
-    changeTriggered = true;
+    if (0 < alertDuration) {
+      alertDuration = 0;
+    }
+    else {
+      changeTriggered = true;
+    }
   }
 #endif
   timer.run();
