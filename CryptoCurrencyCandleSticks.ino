@@ -166,21 +166,36 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
     else {
       Serial.println("\nConnected to http server.");
 
-      // Make another HTTP request:
+// #define SHOW_HTTPHEADERS
+
+      // HTTP request:
       client.print("GET https://" SERVER "/");
       client.print(pair);
       client.print("/candlestick/" CANDLESTICK_WIDTH "/");
+#ifdef SHOW_HTTPHEADERS
+      Serial.print("GET https://" SERVER "/");
+      Serial.print(pair);
+      Serial.print("/candlestick/" CANDLESTICK_WIDTH "/");
+#endif
       {
 	char yyyymmdd[9]; // 9 for "yyyymmdd"
 	sprintf(yyyymmdd, "%04d%02d%02d", year(t), month(t), day(t));
 	client.print(yyyymmdd);
 	client.println(" HTTP/1.0");
+#ifdef SHOW_HTTPHEADERS
+	Serial.print(yyyymmdd);
+	Serial.println(" HTTP/1.0");
+#endif
       }
       client.println("Host: " SERVER);
       client.println("Connection: close");
       client.println();
+#ifdef SHOW_HTTPHEADERS
+      Serial.println("Host: " SERVER);
+      Serial.println("Connection: close");
+      Serial.println();
+#endif
     
-// #define SHOW_HTTPHEADERS
     
       while (client.connected()) {
 	String line = client.readStringUntil('\n');
@@ -205,52 +220,58 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
 	unsigned lastIndex;
 	int success = doc["success"]; // 1
 
-	JsonArray ohlcv = doc["data"]["candlestick"][0]["ohlcv"];
-	unsigned numSticks = ohlcv.size();
+	if (success) {
+	  JsonArray ohlcv = doc["data"]["candlestick"][0]["ohlcv"];
+	  unsigned numSticks = ohlcv.size();
 
-	// Serial.print("Success = ");
-	// Serial.println(success);
+	  // Serial.print("Success = ");
+	  // Serial.println(success);
 
-	if (0 < lastTimeStamp) { // skip newer candlestick if any.
-	  for (int i = numSticks - 1 ; 0 < i ; i--) {
-	    // this may just remove one data at most
-	    if ((unsigned long)(ohlcv[i][5].as<unsigned long long>() / 1000) <= lastTimeStamp) {
-	      numSticks = i + 1;
-	      break;
+	  if (0 < lastTimeStamp) { // skip newer candlestick if any.
+	    for (int i = numSticks - 1 ; 0 < i ; i--) {
+	      // this may just remove one data at most
+	      if ((unsigned long)(ohlcv[i][5].as<unsigned long long>() / 1000) <= lastTimeStamp) {
+		numSticks = i + 1;
+		break;
+	      }
 	    }
 	  }
-	}
 	
-	Serial.print("Number of sticks = ");
-	Serial.print(numSticks);
-	if (n <= numSticks) { // enough sticks obtained
-	  Serial.println(" (enough)");
-	  for (unsigned i = 0 ; i < n ; i++) {
-	    // copy the last n data from JSON
-	    unsigned ohlcvIndex = i + numSticks - n;
-	    candlesticks[i].startPrice = ohlcv[ohlcvIndex][0].as<unsigned>();
-	    candlesticks[i].highestPrice = ohlcv[ohlcvIndex][1].as<unsigned>();
-	    candlesticks[i].lowestPrice = ohlcv[ohlcvIndex][2].as<unsigned>();
-	    candlesticks[i].endPrice = ohlcv[ohlcvIndex][3].as<unsigned>();
-	    candlesticks[i].timeStamp =
-	      (unsigned long)(ohlcv[ohlcvIndex][5].as<unsigned long long>() / 1000);
+	  Serial.print("Number of sticks = ");
+	  Serial.print(numSticks);
+	  if (n <= numSticks) { // enough sticks obtained
+	    Serial.println(" (enough)");
+	    for (unsigned i = 0 ; i < n ; i++) {
+	      // copy the last n data from JSON
+	      unsigned ohlcvIndex = i + numSticks - n;
+	      candlesticks[i].startPrice = ohlcv[ohlcvIndex][0].as<unsigned>();
+	      candlesticks[i].highestPrice = ohlcv[ohlcvIndex][1].as<unsigned>();
+	      candlesticks[i].lowestPrice = ohlcv[ohlcvIndex][2].as<unsigned>();
+	      candlesticks[i].endPrice = ohlcv[ohlcvIndex][3].as<unsigned>();
+	      candlesticks[i].timeStamp =
+		(unsigned long)(ohlcv[ohlcvIndex][5].as<unsigned long long>() / 1000);
+	    }
+	    n = 0;
 	  }
-	  n = 0;
+	  else {
+	    Serial.println(" (not enough)");
+	    for (unsigned i = 0 ; i < numSticks ; i++) {
+	      // copy the all n data from JSON
+	      unsigned stickIndex = i + n - numSticks;
+	      candlesticks[stickIndex].startPrice = ohlcv[i][0].as<unsigned>();
+	      candlesticks[stickIndex].highestPrice = ohlcv[i][1].as<unsigned>();
+	      candlesticks[stickIndex].lowestPrice = ohlcv[i][2].as<unsigned>();
+	      candlesticks[stickIndex].endPrice = ohlcv[i][3].as<unsigned>();
+	      candlesticks[stickIndex].timeStamp =
+		(unsigned long)(ohlcv[i][5].as<unsigned long long>() / 1000);
+	    }
+	    n -= numSticks; // to fill remaining slots
+	    t -= 24 * 60 * 60; // for data one day before
+	  }
 	}
-	else {
-	  Serial.println(" (not enough)");
-	  for (unsigned i = 0 ; i < numSticks ; i++) {
-	    // copy the all n data from JSON
-	    unsigned stickIndex = i + n - numSticks;
-	    candlesticks[stickIndex].startPrice = ohlcv[i][0].as<unsigned>();
-	    candlesticks[stickIndex].highestPrice = ohlcv[i][1].as<unsigned>();
-	    candlesticks[stickIndex].lowestPrice = ohlcv[i][2].as<unsigned>();
-	    candlesticks[stickIndex].endPrice = ohlcv[i][3].as<unsigned>();
-	    candlesticks[stickIndex].timeStamp =
-	      (unsigned long)(ohlcv[i][5].as<unsigned long long>() / 1000);
-	  }
-	  n -= numSticks; // to fill remaining slots
-	  t -= 24 * 60 * 60; // for data one day before
+	else { // not success
+	  // delay(5000);
+	  // what should I do here...
 	}
       }
     }
@@ -266,7 +287,7 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
       highest = candlesticks[i].highestPrice;
     }
   }
-  if (todayshigh == 0) {
+  if (todayshigh == 0) { // if 'todayshigh' is not set
     unsigned today = day(candlesticks[NUM_STICKS - 1].timeStamp + TIMEZONE);
     
     for (unsigned i = 0 ; i < NUM_STICKS ; i++) {
