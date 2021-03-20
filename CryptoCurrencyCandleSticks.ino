@@ -136,6 +136,7 @@ public:
   void SwitchCurrency();
   void ShowCurrencyName(char *buf, int yoff);
   void ShowUpdating(int yoff);
+  void setAlert(class alert a);
 } currencies[2] = {{"ETH", "eth_jpy", 5000}, {"BTC", "btc_jpy", 100000}};
 
 static unsigned cIndex = 0; // ETH by default.
@@ -728,6 +729,76 @@ Currency::GreyoutPrice()
 }
 
 void
+Currency::setAlert(class alert a)
+{
+  // today's high or low
+  if (price < todayslow) {
+    todayslow = price;
+
+    Alert.setMesg1("Updated");
+    Alert.setMesg2("today's low");
+    Alert.setBackColor(TFT_DOWNRED);
+    alertDuration = ALERT_DURATION;
+  }
+  else if (todayshigh < price) {
+    todayshigh = price;
+
+    Alert.setMesg1("Updated");
+    Alert.setMesg2("today's high");
+    Alert.setBackColor(TFT_UPGREEN);
+    alertDuration = ALERT_DURATION;
+  }
+
+  // not event but set today's high and low properly
+  if (todayshigh < candlesticks[NUM_STICKS - 1].highestPrice) {
+    todayshigh = candlesticks[NUM_STICKS - 1].highestPrice;
+  }
+  if (candlesticks[NUM_STICKS - 1].lowestPrice < todayslow) {
+    todayslow = candlesticks[NUM_STICKS - 1].lowestPrice;
+  }
+
+  // five minutes significant price change
+  if (prevCandlestickTimestamp != candlesticks[NUM_STICKS - 1].timeStamp &&
+	   FIVEMINUTES_THRESHOLD <=
+	   abs((long)candlesticks[NUM_STICKS -1].startPrice - (long)candlesticks[NUM_STICKS -1].endPrice)
+	   * 100 / (long)candlesticks[NUM_STICKS - 1].startPrice) {
+    prevCandlestickTimestamp = candlesticks[NUM_STICKS - 1].timeStamp;
+    if (candlesticks[NUM_STICKS - 1].startPrice < candlesticks[NUM_STICKS - 1].endPrice) {
+      Alert.setBackColor(TFT_UPGREEN);
+      snprintf(Alert.mesgbuf, MESGSIZE, "%.1f%% up within",
+	       (float)(candlesticks[NUM_STICKS -1 ].endPrice - candlesticks[NUM_STICKS - 1].startPrice) * 100.0
+	       / (float)candlesticks[NUM_STICKS - 1].startPrice);
+    }
+    else {
+      Alert.setBackColor(TFT_DOWNRED);
+      snprintf(Alert.mesgbuf, MESGSIZE, "%.1f%% down within",
+	       (float)(candlesticks[NUM_STICKS -1 ].startPrice - candlesticks[NUM_STICKS - 1].endPrice) * 100.0
+	       / (float)candlesticks[NUM_STICKS - 1].startPrice); 
+    }
+    Alert.setMesg1(Alert.mesgbuf);
+    Alert.setMesg2("5 minutes.");
+    alertDuration = ALERT_DURATION;
+  }
+
+  // in a minute significant price change
+  if (0 < prevPrice && ONEMINUTE_THRESHOLD <= abs((long)price - (long)prevPrice) * 100 / (long)prevPrice) {
+    if (prevPrice < price) {
+      snprintf(Alert.mesgbuf, MESGSIZE, "%.1f%% up within",
+	       (float)(price - prevPrice) * 100.0 / (float)prevPrice);
+      Alert.setBackColor(TFT_UPGREEN);
+    }
+    else {
+      snprintf(Alert.mesgbuf, MESGSIZE, "%.1f%% down within",
+	       (float)(prevPrice - price) * 100.0 / (float)prevPrice);
+      Alert.setBackColor(TFT_DOWNRED);
+    }
+    Alert.setMesg1(Alert.mesgbuf);
+    Alert.setMesg2("a minute.");
+    alertDuration = ALERT_DURATION;
+  }
+}
+
+void
 Currency::ShowCurrentPrice()
 {
   unsigned long t; // for current time
@@ -816,71 +887,8 @@ Currency::ShowCurrentPrice()
   // check events...
   // last event has the highest priority
 
-  // today's high or low
-  if (price < todayslow) {
-    todayslow = price;
-
-    Alert.setMesg1("Updated");
-    Alert.setMesg2("today's low");
-    Alert.setBackColor(TFT_DOWNRED);
-    alertDuration = ALERT_DURATION;
-  }
-  else if (todayshigh < price) {
-    todayshigh = price;
-
-    Alert.setMesg1("Updated");
-    Alert.setMesg2("today's high");
-    Alert.setBackColor(TFT_UPGREEN);
-    alertDuration = ALERT_DURATION;
-  }
-
-  // not event but set today's high and low properly
-  if (todayshigh < candlesticks[NUM_STICKS - 1].highestPrice) {
-    todayshigh = candlesticks[NUM_STICKS - 1].highestPrice;
-  }
-  if (candlesticks[NUM_STICKS - 1].lowestPrice < todayslow) {
-    todayslow = candlesticks[NUM_STICKS - 1].lowestPrice;
-  }
-
-  // five minutes significant price change
-  if (prevCandlestickTimestamp != candlesticks[NUM_STICKS - 1].timeStamp &&
-	   FIVEMINUTES_THRESHOLD <=
-	   abs((long)candlesticks[NUM_STICKS -1].startPrice - (long)candlesticks[NUM_STICKS -1].endPrice)
-	   * 100 / (long)candlesticks[NUM_STICKS - 1].startPrice) {
-    prevCandlestickTimestamp = candlesticks[NUM_STICKS - 1].timeStamp;
-    if (candlesticks[NUM_STICKS - 1].startPrice < candlesticks[NUM_STICKS - 1].endPrice) {
-      Alert.setBackColor(TFT_UPGREEN);
-      snprintf(Alert.mesgbuf, MESGSIZE, "%.1f%% up within",
-	       (float)(candlesticks[NUM_STICKS -1 ].endPrice - candlesticks[NUM_STICKS - 1].startPrice) * 100.0
-	       / (float)candlesticks[NUM_STICKS - 1].startPrice);
-    }
-    else {
-      Alert.setBackColor(TFT_DOWNRED);
-      snprintf(Alert.mesgbuf, MESGSIZE, "%.1f%% down within",
-	       (float)(candlesticks[NUM_STICKS -1 ].startPrice - candlesticks[NUM_STICKS - 1].endPrice) * 100.0
-	       / (float)candlesticks[NUM_STICKS - 1].startPrice); 
-    }
-    Alert.setMesg1(Alert.mesgbuf);
-    Alert.setMesg2("5 minutes.");
-    alertDuration = ALERT_DURATION;
-  }
-
-  // in a minute significant price change
-  if (0 < prevPrice && ONEMINUTE_THRESHOLD <= abs((long)price - (long)prevPrice) * 100 / (long)prevPrice) {
-    if (prevPrice < price) {
-      snprintf(Alert.mesgbuf, MESGSIZE, "%.1f%% up within",
-	       (float)(price - prevPrice) * 100.0 / (float)prevPrice);
-      Alert.setBackColor(TFT_UPGREEN);
-    }
-    else {
-      snprintf(Alert.mesgbuf, MESGSIZE, "%.1f%% down within",
-	       (float)(prevPrice - price) * 100.0 / (float)prevPrice);
-      Alert.setBackColor(TFT_DOWNRED);
-    }
-    Alert.setMesg1(Alert.mesgbuf);
-    Alert.setMesg2("a minute.");
-    alertDuration = ALERT_DURATION;
-  }
+  currencies[another].setAlert(Alert);
+  setAlert(Alert);
 
   if (0 < alertDuration) {
     Alert.setLastPrice(price);
