@@ -832,6 +832,29 @@ Currency::setAlert(class alert a)
 }
 
 void
+redrawChart(unsigned ind)
+{
+  LCD.fillScreen(TFT_BLACK);
+  currencies[ind].ShowChart(0);
+  if (1 < numScreens) {
+    currencies[1 - ind].ShowChart(tftHeight);
+  }
+}
+
+void
+alertProc()
+{
+  if (0 < alertDuration) {
+    Alert.flashAlert();
+    alertDuration--;
+  }
+  if (alertDuration == 0) {
+    timer.deleteTimer(Alert.alertId);
+    redrawChart(cIndex);
+  }
+}
+
+void
 Currency::ShowCurrentPrice()
 {
   unsigned long t; // for current time
@@ -937,29 +960,6 @@ Currency::ShowCurrentPrice()
     if (1 < numScreens) {
       currencies[another].ShowChart(tftHeight);
     }
-  }
-}
-
-void
-redrawChart(unsigned ind)
-{
-  LCD.fillScreen(TFT_BLACK);
-  currencies[ind].ShowChart(0);
-  if (1 < numScreens) {
-    currencies[1 - ind].ShowChart(tftHeight);
-  }
-}
-
-void
-alertProc()
-{
-  if (0 < alertDuration) {
-    Alert.flashAlert();
-    alertDuration--;
-  }
-  if (alertDuration == 0) {
-    timer.deleteTimer(Alert.alertId);
-    redrawChart(cIndex);
   }
 }
 
