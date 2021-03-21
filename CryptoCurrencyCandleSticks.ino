@@ -769,7 +769,8 @@ Currency::setAlert(class alert a)
   if (price < todayslow) {
     todayslow = price;
 
-    Alert.setMesg1("Updated");
+    snprintf(Alert.mesgbuf, MESGSIZE, "%s hit", name);
+    Alert.setMesg1(Alert.mesgbuf);
     Alert.setMesg2("today's low");
     Alert.setBackColor(TFT_DOWNRED);
     Alert.setLastPrice(price);
@@ -778,7 +779,8 @@ Currency::setAlert(class alert a)
   else if (todayshigh < price) {
     todayshigh = price;
 
-    Alert.setMesg1("Updated");
+    snprintf(Alert.mesgbuf, MESGSIZE, "%s hit", name);
+    Alert.setMesg1(Alert.mesgbuf);
     Alert.setMesg2("today's high");
     Alert.setBackColor(TFT_UPGREEN);
     Alert.setLastPrice(price);
@@ -801,13 +803,13 @@ Currency::setAlert(class alert a)
     prevCandlestickTimestamp = candlesticks[numSticks - 1].timeStamp;
     if (candlesticks[numSticks - 1].startPrice < candlesticks[numSticks - 1].endPrice) {
       Alert.setBackColor(TFT_UPGREEN);
-      snprintf(Alert.mesgbuf, MESGSIZE, "%.1f%% up within",
+      snprintf(Alert.mesgbuf, MESGSIZE, "%s %.1f%% up within", name,
 	       (float)(candlesticks[numSticks -1 ].endPrice - candlesticks[numSticks - 1].startPrice) * 100.0
 	       / (float)candlesticks[numSticks - 1].startPrice);
     }
     else {
       Alert.setBackColor(TFT_DOWNRED);
-      snprintf(Alert.mesgbuf, MESGSIZE, "%.1f%% down within",
+      snprintf(Alert.mesgbuf, MESGSIZE, "%s %.1f%% down within", name,
 	       (float)(candlesticks[numSticks -1 ].startPrice - candlesticks[numSticks - 1].endPrice) * 100.0
 	       / (float)candlesticks[numSticks - 1].startPrice); 
     }
