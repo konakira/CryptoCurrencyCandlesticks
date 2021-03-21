@@ -51,6 +51,7 @@ TFT_eSPI tft = TFT_eSPI();  // Invoke library, pins defined in User_Setup.h
 #if defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
 #define LCD M5.Lcd
 #else
+#undef LCD
 #define LCD tft
 #endif
 
@@ -104,7 +105,8 @@ itocsa(char *buf, unsigned bufsiz, unsigned n)
 
 class Currency {
 public:
-  char *name, *pair;
+  const char* name;
+  const char* pair;
   int priceline;
   unsigned another = 0;
   struct {
@@ -121,7 +123,7 @@ public:
   float highestRelative, lowestRelative;
   int pricePixel;
 
-  Currency (char *na, char *pa, unsigned pl) {
+  Currency (const char *na, const char *pa, unsigned pl) {
     name = na;
     pair = pa;
     priceline = pl;
@@ -135,7 +137,7 @@ public:
   void ShowCurrentPrice();
   void GreyoutPrice();
   void SwitchCurrency();
-  void ShowCurrencyName(char *buf, int yoff);
+  void ShowCurrencyName(const char *buf, int yoff);
   void ShowUpdating(int yoff);
   void setAlert(class alert a);
 } currencies[2] = {{"ETH", "eth_jpy", 5000}, {"BTC", "btc_jpy", 100000}};
@@ -220,7 +222,6 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
 	Serial.println(error.f_str());
       }
       else {
-	unsigned lastIndex;
 	int success = doc["success"]; // 1
 
 	if (success) {
@@ -445,7 +446,7 @@ static bool rotationTriggered = false;
 #define ALERT_BLACK_DURATION 200 // msec
 
 void
-DrawStringWithShade(char *buf, int x, int y, unsigned font, int color, int shade)
+DrawStringWithShade(const char *buf, int x, int y, unsigned font, int color, int shade)
 {
   LCD.setTextColor(TFT_BLACK);
   LCD.drawString(buf, x - shade, y - shade, font);
@@ -477,7 +478,7 @@ ShowLastPrice(char *buf, int lastPricePixel, unsigned priceColor, int yoff)
 #define BASE_DIFF 4
 
 void
-ShowRelativePrice(char *buf, char *name, int lastPricePixel, unsigned priceColor, int yoff)
+ShowRelativePrice(char *buf, const char *name, int lastPricePixel, unsigned priceColor, int yoff)
 {
   int textY;
 
@@ -506,7 +507,7 @@ ShowRelativePrice(char *buf, char *name, int lastPricePixel, unsigned priceColor
 }
 
 void
-Currency::ShowCurrencyName(char *buf, int yoff)
+Currency::ShowCurrencyName(const char *buf, int yoff)
 {
   int textY;
   if (pricePixel < tftHalfHeight) {
@@ -519,7 +520,7 @@ Currency::ShowCurrencyName(char *buf, int yoff)
   LCD.drawString(buf, tftWidth - LCD.textWidth(buf, 2) - 1, textY + yoff, 2);
 }
 
-static char *updating = "Updating...";
+static const char *updating = "Updating...";
 
 void
 Currency::ShowUpdating(int yoff)
@@ -543,10 +544,10 @@ public:
   }
   char mesgbuf[MESGSIZE];
   int alertId;
-  void setMesg1(char *s) {
+  void setMesg1(const char *s) {
     alertmesg1 = s;
   }
-  void setMesg2(char *s) {
+  void setMesg2(const char *s) {
     alertmesg2 = s;
   }
   void setLastPrice(unsigned p) {
@@ -577,8 +578,8 @@ private:
 		   tftHeight - PriceFontHeight + yoff, GFXFF);
   }
   char buf[PRICEBUFSIZE];
-  char *alertmesg1;
-  char *alertmesg2;
+  const char *alertmesg1;
+  const char *alertmesg2;
   unsigned textColor = TFT_WHITE;
   unsigned alertbgcolor = TFT_DOWNRED; // alert color by default
   unsigned lastPrice;
@@ -859,8 +860,7 @@ Currency::ShowCurrentPrice()
 {
   unsigned long t; // for current time
   unsigned long prevTime;
-  char buf[PRICEBUFSIZE], buf2[PRICEBUFSIZE];
-  unsigned stickColor = TFT_DOWNRED, priceColor = TFT_GREEN;
+  char buf[PRICEBUFSIZE];
 
   if (0 < alertDuration) {
     return;
