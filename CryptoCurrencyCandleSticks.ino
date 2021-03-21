@@ -772,6 +772,7 @@ Currency::setAlert(class alert a)
     Alert.setMesg1("Updated");
     Alert.setMesg2("today's low");
     Alert.setBackColor(TFT_DOWNRED);
+    Alert.setLastPrice(price);
     alertDuration = ALERT_DURATION;
   }
   else if (todayshigh < price) {
@@ -780,6 +781,7 @@ Currency::setAlert(class alert a)
     Alert.setMesg1("Updated");
     Alert.setMesg2("today's high");
     Alert.setBackColor(TFT_UPGREEN);
+    Alert.setLastPrice(price);
     alertDuration = ALERT_DURATION;
   }
 
@@ -811,6 +813,7 @@ Currency::setAlert(class alert a)
     }
     Alert.setMesg1(Alert.mesgbuf);
     Alert.setMesg2("5 minutes.");
+    Alert.setLastPrice(candlesticks[numSticks - 1].endPrice);
     alertDuration = ALERT_DURATION;
   }
 
@@ -828,6 +831,7 @@ Currency::setAlert(class alert a)
     }
     Alert.setMesg1(Alert.mesgbuf);
     Alert.setMesg2("a minute.");
+    Alert.setLastPrice(price);
     alertDuration = ALERT_DURATION;
   }
 }
@@ -945,7 +949,7 @@ Currency::ShowCurrentPrice()
   setAlert(Alert);
 
   if (0 < alertDuration) {
-    Alert.setLastPrice(price);
+    // Alert.setLastPrice(price);
     if (1 < numScreens || 0 < dedicatedPriceAreaHeight) {
       LCD.fillScreen(TFT_BLACK);
       ShowChart(0);
@@ -1075,7 +1079,7 @@ void setup()
   LCD.setTextColor(TFT_WHITE);
   LCD.setTextPadding(PADX); // seems no effect by this line.
   LCD.drawString("Connecting ...",
-		 LCD.padX, LCD.height() / 2 - LCD.fontHeight(4) / 2, 4);
+		 PADX, LCD.height() / 2 - LCD.fontHeight(4) / 2, 4);
   LCD.setTextSize(1);
   LCD.setFreeFont(PRICE_FONT); // Select a font for last price display
   PriceFontHeight = LCD.fontHeight(GFXFF) - PRICE_FONT_HEIGHT_ADJUSTMENT;
@@ -1086,7 +1090,9 @@ void setup()
     tftHeight -= priceHeight;
   }
 
-  Serial.print("Attempting to connect to WiFi ");
+  Serial.print("Attempting to connect to WiFi (");
+  Serial.print(WIFIAP);
+  Serial.print(") ");
   WiFi.begin(WIFIAP, WIFIPW);
   //  WiFi.disconnect();
   //WiFi.stop();
