@@ -154,6 +154,7 @@ unsigned numSticks = 1;
 #define TIMEZONE (9 * 60 * 60)
 #define MINIMUM_SPLITTABLE_HEIGHT 239 // for splitting screen into dual one
 #define MINIMUM_SEPARATABLE_HEIGHT 150 // for price and chart seperation
+#define MINIMUM_WIDTH 199 // allowed minimum width used in rotation
 
 void
 Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
@@ -419,6 +420,7 @@ Currency::obtainLastPrice(unsigned long *t)
 static unsigned alertDuration = 0;
 static unsigned long prevCandlestickTimestamp = 0;
 static bool changeTriggered = false;
+static bool rotationTriggered = false;
 
 #define PRICEBUFSIZE 24
 
@@ -939,6 +941,16 @@ Currency::ShowCurrentPrice()
 }
 
 void
+redrawChart(unsigned ind)
+{
+  LCD.fillScreen(TFT_BLACK);
+  currencies[ind].ShowChart(0);
+  if (1 < numScreens) {
+    currencies[1 - ind].ShowChart(tftHeight);
+  }
+}
+
+void
 alertProc()
 {
   if (0 < alertDuration) {
@@ -947,11 +959,7 @@ alertProc()
   }
   if (alertDuration == 0) {
     timer.deleteTimer(Alert.alertId);
-    LCD.fillScreen(TFT_BLACK);
-    currencies[cIndex].ShowChart(0);
-    if (1 < numScreens) {
-      currencies[1 - cIndex].ShowChart(tftHeight);
-    }
+    redrawChart(cIndex);
   }
 }
 
@@ -975,11 +983,7 @@ void Currency::SwitchCurrency()
 
   cIndex = 1 - cIndex; // (cIndex == 1) ? 0 : 1
 
-  LCD.fillScreen(TFT_BLACK);
-  currencies[cIndex].ShowChart(0);
-  if (1 < numScreens) {
-    currencies[1 - cIndex].ShowChart(tftHeight);
-  }
+  redrawChart(cIndex);
 }
 
 void SecProc()
@@ -987,6 +991,29 @@ void SecProc()
   if (changeTriggered) {
     changeTriggered = false;
     currencies[cIndex].SwitchCurrency();
+  }
+  if (rotationTriggered) {
+    rotationTriggered = false;
+    unsigned r;
+    if (MINIMUM_WIDTH < LCD.height()) {
+      r = (LCD.getRotation() + 1) % 4;
+    }
+    else {
+      r = (LCD.getRotation() + 2) % 4;
+    }
+    unsigned prevNumSticks = numSticks;
+    LCD.setRotation(r);
+    tftHeight = LCD.height() / numScreens;
+    tftWidth = LCD.width();
+    tftHalfHeight = tftHeight / 2;
+    numSticks =
+      ((tftWidth < HORIZONTAL_RESOLUTION) ? tftWidth : HORIZONTAL_RESOLUTION) / STICK_WIDTH;
+    if (numSticks != prevNumSticks) {
+      currencies[cIndex].ShowCurrentPrice();
+    }
+    else {
+      redrawChart(cIndex);
+    }
   }
 }
 
@@ -1038,15 +1065,11 @@ void setup()
   tftWidth = tft.width();
 #endif
 
+  tftHalfHeight = tftHeight / 2;
   numSticks =
     ((tftWidth < HORIZONTAL_RESOLUTION) ? tftWidth : HORIZONTAL_RESOLUTION) / STICK_WIDTH;
 
   currencies[0].another = 1;
-
-  Serial.print("tftHeight = ");
-  Serial.println(tftHeight);
-  
-  tftHalfHeight = tftHeight / 2;
 
   LCD.fillScreen(TFT_BLUE);
   LCD.setTextColor(TFT_WHITE);
@@ -1092,12 +1115,20 @@ void loop()
 {
 #if defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
   M5.update();
-  if (M5.BtnA.wasPressed() || M5.BtnB.wasPressed()) {
+  if (M5.BtnA.wasPressed()) {
     if (0 < alertDuration) {
       alertDuration = 0;
     }
     else {
       changeTriggered = true;
+    }
+  }
+  if (M5.BtnB.wasPressed()) {
+    if (0 < alertDuration) {
+      alertDuration = 0;
+    }
+    else {
+      rotationTriggered = true;
     }
   }
 #endif
