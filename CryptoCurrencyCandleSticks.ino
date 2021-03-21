@@ -48,7 +48,7 @@ const char* bitbank_root_ca= \
 
 TFT_eSPI tft = TFT_eSPI();  // Invoke library, pins defined in User_Setup.h
 
-#if defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
+#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
 #define LCD M5.Lcd
 #else
 #undef LCD
@@ -1101,7 +1101,7 @@ void setup()
 
   Serial.println("");
 
-#if !defined(ARDUINO_M5Stick_C_Plus) && !defined(ARDUINO_M5STACK_Core2)
+#if !defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus) && !defined(ARDUINO_M5STACK_Core2)
   attachInterrupt(digitalPinToInterrupt(BUTTON1), buttonEventProc, FALLING);
   attachInterrupt(digitalPinToInterrupt(BUTTON2), buttonEventProc, FALLING);
 #endif
@@ -1113,7 +1113,7 @@ void setup()
 
 void loop()
 {
-#if defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
+#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
   M5.update();
   if (M5.BtnA.wasPressed()) {
     if (0 < alertDuration) {
