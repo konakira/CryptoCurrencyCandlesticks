@@ -941,9 +941,6 @@ Currency::ShowCurrentPrice()
 
   SerialPrintTimestamp(candlesticks[numSticks - 1].timeStamp, TIMEZONE);
 
-  Serial.print("Vertical price line in pixel = ");
-  Serial.println(map(candlesticks[numSticks - 1].endPrice, lowest, highest, tftHeight, 0));
-
   // check events...
   // last event has the highest priority
 
