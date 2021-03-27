@@ -1089,20 +1089,28 @@ void setup()
     tftHeight -= priceHeight;
   }
 
-  Serial.print("Attempting to connect to WiFi (");
-  Serial.print(WIFIAP);
-  Serial.print(") ");
-  WiFi.begin(WIFIAP, WIFIPW);
-  //  WiFi.disconnect();
-  //WiFi.stop();
+  do {
+    int i;
+    Serial.print("Attempting to connect to WiFi (");
+    Serial.print(WIFIAP);
+    Serial.print(") ");
+    WiFi.begin(WIFIAP, WIFIPW);
+    //  WiFi.disconnect();
+    //WiFi.stop();
 
-  // attempt to connect to Wifi network:
-  while (WiFi.status() != WL_CONNECTED) {
-    Serial.print(".");
-    // wait 1 second for re-trying
-    delay(1000);
-  }
-  Serial.println(" Connected");
+    // attempt to connect to Wifi network:
+    for (i = 0 ; i < WIFI_ATTEMPT_LIMIT && WiFi.status() != WL_CONNECTED ; i++) {
+      Serial.print(".");
+      // wait 1 second for re-trying
+      delay(1000);
+    }
+    if (i < WIFI_ATTEMPT_LIMIT) {
+      Serial.println(" Connected");
+    }
+    else {
+      Serial.println(" Failed to coonect");
+    }
+  } while(WiFi.status() != WLCONNECTED);
 
   Serial.println("");
 
