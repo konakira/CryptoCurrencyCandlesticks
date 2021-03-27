@@ -1,6 +1,8 @@
 # Prerequisites
 auth.h
 Free_Fonts.h
+platformio.ini
+*~
 
 *.d
 
