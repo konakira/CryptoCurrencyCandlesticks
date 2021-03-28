@@ -443,6 +443,7 @@ static unsigned alertDuration = 0;
 static unsigned long prevCandlestickTimestamp = 0;
 static bool changeTriggered = false;
 static bool rotationTriggered = false;
+static bool currencyRotationTriggered = false;
 
 #define PRICEBUFSIZE 24
 
@@ -1023,6 +1024,19 @@ void SecProc()
 	redrawChart(cIndex);
       }
     }
+    if (currencyRotationTriggered) { // currency and screen rotation change triggered
+      currencyRotationTriggered = false;
+      static const unsigned cur_rot[4] = {1, 2, 3, 0};
+      unsigned r = (LCD.getRotation() & 2); // 1 to 0, 3 to 1. no choice for 2 and 4
+      unsigned cr = r + cIndex;
+      cr = cur_rot[cr];
+      if (r != cr / 2 + 1) {
+	LCD.setRotation((cr & 2) + 1);
+      }
+      if (cIndex != cr % 2) {
+	currencies[cIndex].SwitchCurrency();
+      }
+    }
   }
   else { // if FiFi.status() != WL_CONNECTED
     WiFiConnected = false;
@@ -1072,7 +1086,7 @@ void buttonEventProc()
     alertDuration = 0;
   }
   else {
-    changeTriggered = true;
+    currencyRotationTriggered = true;
   }
 }
 #endif
