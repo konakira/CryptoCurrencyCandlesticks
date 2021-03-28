@@ -973,10 +973,21 @@ void Currency::SwitchCurrency()
   redrawChart(cIndex);
 }
 
+void
+_ShowCurrentPrice()
+{
+  if (WiFi.status() == WL_CONNECTED) {
+    currencies[cIndex].ShowCurrentPrice();
+  }
+}
+
+#define WIFI_ATTEMPT_LIMIT 30 // seconds for WiFi connection trial
 static bool WiFiConnected = false;
 
 void SecProc()
 {
+  static unsigned nWiFiTrial = 0;
+  
   if (WiFi.status() == WL_CONNECTED) {
     if (!WiFiConnected) {
       WiFiConnected = true;
@@ -988,13 +999,15 @@ void SecProc()
       currencies[cIndex].SwitchCurrency();
     }
     if (rotationTriggered) {
+      static const unsigned rotation_w[4] = {2, 3, 1, 0}; // for wide LCD
+      static const unsigned rotation_n[4] = {1, 3, 1, 1}; // for narrow LCD
       rotationTriggered = false;
-      unsigned r;
+      unsigned r = LCD.getRotation();
       if (MINIMUM_WIDTH < LCD.height()) {
-	r = (LCD.getRotation() + 1) % 4;
+	r = rotation_w[r];
       }
       else {
-	r = (LCD.getRotation() + 2) % 4;
+	r = rotation_n[r];
       }
       unsigned prevNumSticks = numSticks;
       LCD.setRotation(r);
@@ -1016,9 +1029,9 @@ void SecProc()
     if (nWiFiTrial++ == 0) {
       if (0 < currencies[cIndex].price) { // connected before but lost
 	// Grey out the price display
-	GreyoutPrice();
+	currencies[cIndex].GreyoutPrice();
 	if (1 < numScreens) {
-	  currencies[another].GreyoutPrice();
+	  currencies[1 - cIndex].GreyoutPrice();
 	}
 
 #define CONNECTION_LOST "Reconnecting ..."
@@ -1049,14 +1062,6 @@ void SecProc()
     else {
       Serial.print(".");
     }
-  }
-}
-
-void
-_ShowCurrentPrice()
-{
-  if (WiFi.status() == WL_CONNECTED) {
-    currencies[cIndex].ShowCurrentPrice();
   }
 }
 
