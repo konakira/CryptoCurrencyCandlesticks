@@ -432,7 +432,7 @@ Currency::obtainLastPrice(unsigned long *t)
 }
 
 #define ALERT_INTERVAL 500 // msec    
-#define ALERT_DURATION (40 /* sec */ * (1000 / ALERT_INTERVAL)) // times ALERT_INTERVAL
+#define ALERT_DURATION (30 /* sec */ * (1000 / ALERT_INTERVAL)) // times ALERT_INTERVAL
 static unsigned alertDuration = 0;
 static unsigned long prevCandlestickTimestamp = 0;
 static bool changeTriggered = false;
@@ -899,14 +899,14 @@ Currency::ShowCurrentPrice()
     }
 
 #define CONNECTION_LOST "Reconnecting ..."
+    // WiFi.begin(WIFIAP, WIFIPW);
+    WiFi.reconnect();
+    Serial.print("WiFi connection was lost.\nAttempting to reconnect to WiFi ");
+    
     LCD.setTextColor(TFT_WHITE, TFT_BLUE);
     LCD.drawString(CONNECTION_LOST,
 		   tftWidth / 2 - LCD.textWidth(CONNECTION_LOST, 4) / 2,
 		   tftHalfHeight - LCD.fontHeight(4) / 2, 4);
-    
-    Serial.print("WiFi connection was lost.\nAttempting to reconnect to WiFi ");
-    // WiFi.begin(WIFIAP, WIFIPW);
-    WiFi.reconnect();
 
 #define WIFI_ATTEMPT_LIMIT 45
     unsigned i;
@@ -1025,7 +1025,7 @@ void SecProc()
     tftWidth = LCD.width();
     tftHalfHeight = tftHeight / 2;
     numSticks =
-      tftWidth < MAX_HORIZONTAL_RESOLUTION) ? tftWidth / STICK_WIDTH : NUM_STICKS;
+      (tftWidth < MAX_HORIZONTAL_RESOLUTION) ? tftWidth / STICK_WIDTH : NUM_STICKS;
     if (numSticks != prevNumSticks) {
       currencies[cIndex].ShowCurrentPrice();
     }
@@ -1085,15 +1085,11 @@ void setup()
 
   tftHalfHeight = tftHeight / 2;
   numSticks =
-    tftWidth < MAX_HORIZONTAL_RESOLUTION) ? tftWidth / STICK_WIDTH : NUM_STICKS;
+    (tftWidth < MAX_HORIZONTAL_RESOLUTION) ? tftWidth / STICK_WIDTH : NUM_STICKS;
 
   currencies[0].another = 1;
 
-  LCD.fillScreen(TFT_BLUE);
-  LCD.setTextColor(TFT_WHITE);
   LCD.setTextPadding(PADX); // seems no effect by this line.
-  LCD.drawString("Connecting ...",
-		 PADX, LCD.height() / 2 - LCD.fontHeight(4) / 2, 4);
   LCD.setTextSize(1);
   LCD.setFreeFont(PRICE_FONT); // Select a font for last price display
   PriceFontHeight = LCD.fontHeight(GFXFF) - PRICE_FONT_HEIGHT_ADJUSTMENT;
@@ -1110,8 +1106,13 @@ void setup()
     Serial.print(WIFIAP);
     Serial.print(") ");
     WiFi.begin(WIFIAP, WIFIPW);
-    //  WiFi.disconnect();
-    //WiFi.stop();
+
+    LCD.fillScreen(TFT_BLACK);
+    delay(100);
+    LCD.fillScreen(TFT_BLUE);
+    LCD.setTextColor(TFT_WHITE);
+    LCD.drawString("Connecting ...",
+		 PADX, LCD.height() / 2 - LCD.fontHeight(4) / 2, 4);
 
     // attempt to connect to Wifi network:
     for (i = 0 ; i < WIFI_ATTEMPT_LIMIT && WiFi.status() != WL_CONNECTED ; i++) {
@@ -1124,8 +1125,10 @@ void setup()
     }
     else {
       Serial.println(" Failed to coonect");
+      WiFi.disconnect();
+      // WiFi.stop();
     }
-  } while(WiFi.status() != WLCONNECTED);
+  } while(WiFi.status() != WL_CONNECTED);
 
   Serial.println("");
 
