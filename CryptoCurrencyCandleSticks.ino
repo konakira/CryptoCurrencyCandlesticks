@@ -385,14 +385,20 @@ Currency::obtainLastPrice(unsigned long *t)
     client.println("Connection: close");
     client.println();
 
-    while (client.connected()) {
-      String line = client.readStringUntil('\n');
+    unsigned errcounter = 0;
+    while (client.connected() && errcounter < ERRTHRESHOLD) {
+      String line = client.readStringUntil('\n'); // timeout in 1000msec
+      if (line) {
 #ifdef SHOW_HTTPHEADERS
-      Serial.println(line); // echo response headers
+	Serial.println(line); // echo response headers
 #endif
-      if (line == "\r") {
-        // Serial.println("headers received");
-        break;
+	if (line == "\r") {
+	  // Serial.println("headers received");
+	  break;
+	}
+      }
+      else {
+	errcounter++;
       }
     }
 
@@ -889,43 +895,6 @@ Currency::ShowCurrentPrice()
 
   client.setCACert(bitbank_root_ca);
 
-  if (WiFi.status() != WL_CONNECTED) {
-    //WiFi.disconnect();
-
-    // Grey out the price display
-    GreyoutPrice();
-    if (1 < numScreens) {
-      currencies[another].GreyoutPrice();
-    }
-
-#define CONNECTION_LOST "Reconnecting ..."
-    // WiFi.begin(WIFIAP, WIFIPW);
-    WiFi.reconnect();
-    Serial.print("WiFi connection was lost.\nAttempting to reconnect to WiFi ");
-    
-    LCD.setTextColor(TFT_WHITE, TFT_BLUE);
-    LCD.drawString(CONNECTION_LOST,
-		   tftWidth / 2 - LCD.textWidth(CONNECTION_LOST, 4) / 2,
-		   tftHalfHeight - LCD.fontHeight(4) / 2, 4);
-
-#define WIFI_ATTEMPT_LIMIT 45
-    unsigned i;
-    
-    // attempt to connect to Wifi network:
-    for(i = 0 ; i < WIFI_ATTEMPT_LIMIT && WiFi.status() != WL_CONNECTED ; i++) {
-      Serial.print(".");
-      // wait 1 second for re-trying
-      delay(1000);
-    }
-    if (i < WIFI_ATTEMPT_LIMIT) {
-      Serial.println(" Connected");
-    }
-    else {
-      Serial.println(" Failed to recoonect");
-      return;
-    }
-  }
-  
   Serial.println("\n==== Starting connection to server...");
 
   ShowUpdating(1 < numScreens ? tftHeight : 0);
@@ -1004,33 +973,81 @@ void Currency::SwitchCurrency()
   redrawChart(cIndex);
 }
 
+static bool WiFiConnected = false;
+
 void SecProc()
 {
-  if (changeTriggered) {
-    changeTriggered = false;
-    currencies[cIndex].SwitchCurrency();
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!WiFiConnected) {
+      WiFiConnected = true;
+      Serial.println(" Connected");
+      _ShowCurrentPrice();
+    }
+    if (changeTriggered) {
+      changeTriggered = false;
+      currencies[cIndex].SwitchCurrency();
+    }
+    if (rotationTriggered) {
+      rotationTriggered = false;
+      unsigned r;
+      if (MINIMUM_WIDTH < LCD.height()) {
+	r = (LCD.getRotation() + 1) % 4;
+      }
+      else {
+	r = (LCD.getRotation() + 2) % 4;
+      }
+      unsigned prevNumSticks = numSticks;
+      LCD.setRotation(r);
+      tftHeight = LCD.height() / numScreens;
+      tftWidth = LCD.width();
+      tftHalfHeight = tftHeight / 2;
+      numSticks =
+	(tftWidth < MAX_HORIZONTAL_RESOLUTION) ? tftWidth / STICK_WIDTH : NUM_STICKS;
+      if (numSticks != prevNumSticks) {
+	currencies[cIndex].ShowCurrentPrice();
+      }
+      else {
+	redrawChart(cIndex);
+      }
+    }
   }
-  if (rotationTriggered) {
-    rotationTriggered = false;
-    unsigned r;
-    if (MINIMUM_WIDTH < LCD.height()) {
-      r = (LCD.getRotation() + 1) % 4;
+  else { // if FiFi.status() != WL_CONNECTED
+    WiFiConnected = false;
+    if (nWiFiTrial++ == 0) {
+      if (0 < currencies[cIndex].price) { // connected before but lost
+	// Grey out the price display
+	GreyoutPrice();
+	if (1 < numScreens) {
+	  currencies[another].GreyoutPrice();
+	}
+
+#define CONNECTION_LOST "Reconnecting ..."
+	// WiFi.begin(WIFIAP, WIFIPW);
+	WiFi.reconnect();
+	Serial.print("WiFi connection was lost.\nAttempting to reconnect to WiFi ");
+
+	LCD.setTextColor(TFT_WHITE, TFT_BLUE);
+	LCD.drawString(CONNECTION_LOST,
+		       tftWidth / 2 - LCD.textWidth(CONNECTION_LOST, 4) / 2,
+		       tftHalfHeight - LCD.fontHeight(4) / 2, 4);
+      }
+      else { // not connected so far
+	WiFi.begin(WIFIAP, WIFIPW);
+	LCD.fillScreen(TFT_BLACK);
+	delay(100);
+	LCD.fillScreen(TFT_BLUE);
+	LCD.setTextColor(TFT_WHITE);
+	LCD.drawString("Connecting ...",
+		       PADX, LCD.height() / 2 - LCD.fontHeight(4) / 2, 4);
+      }
+    }
+    if (WIFI_ATTEMPT_LIMIT < nWiFiTrial) {
+      Serial.println(" Failed to coonect");
+      WiFi.disconnect();
+      nWiFiTrial = 0;
     }
     else {
-      r = (LCD.getRotation() + 2) % 4;
-    }
-    unsigned prevNumSticks = numSticks;
-    LCD.setRotation(r);
-    tftHeight = LCD.height() / numScreens;
-    tftWidth = LCD.width();
-    tftHalfHeight = tftHeight / 2;
-    numSticks =
-      (tftWidth < MAX_HORIZONTAL_RESOLUTION) ? tftWidth / STICK_WIDTH : NUM_STICKS;
-    if (numSticks != prevNumSticks) {
-      currencies[cIndex].ShowCurrentPrice();
-    }
-    else {
-      redrawChart(cIndex);
+      Serial.print(".");
     }
   }
 }
@@ -1038,7 +1055,9 @@ void SecProc()
 void
 _ShowCurrentPrice()
 {
-  currencies[cIndex].ShowCurrentPrice();
+  if (WiFi.status() == WL_CONNECTED) {
+    currencies[cIndex].ShowCurrentPrice();
+  }
 }
 
 #if !defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus) && !defined(ARDUINO_M5STACK_Core2)
@@ -1100,37 +1119,15 @@ void setup()
     tftHeight -= priceHeight;
   }
 
-  do {
-    int i;
-    Serial.print("Attempting to connect to WiFi (");
-    Serial.print(WIFIAP);
-    Serial.print(") ");
-    WiFi.begin(WIFIAP, WIFIPW);
+  Serial.print("Attempting to connect to WiFi (");
+  Serial.print(WIFIAP);
+  Serial.print(") ");
+  WiFi.begin(WIFIAP, WIFIPW);
 
-    LCD.fillScreen(TFT_BLACK);
-    delay(100);
-    LCD.fillScreen(TFT_BLUE);
-    LCD.setTextColor(TFT_WHITE);
-    LCD.drawString("Connecting ...",
+  LCD.fillScreen(TFT_BLUE);
+  LCD.setTextColor(TFT_WHITE);
+  LCD.drawString("Connecting ...",
 		 PADX, LCD.height() / 2 - LCD.fontHeight(4) / 2, 4);
-
-    // attempt to connect to Wifi network:
-    for (i = 0 ; i < WIFI_ATTEMPT_LIMIT && WiFi.status() != WL_CONNECTED ; i++) {
-      Serial.print(".");
-      // wait 1 second for re-trying
-      delay(1000);
-    }
-    if (i < WIFI_ATTEMPT_LIMIT) {
-      Serial.println(" Connected");
-    }
-    else {
-      Serial.println(" Failed to coonect");
-      WiFi.disconnect();
-      // WiFi.stop();
-    }
-  } while(WiFi.status() != WL_CONNECTED);
-
-  Serial.println("");
 
 #if !defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus) && !defined(ARDUINO_M5STACK_Core2)
   attachInterrupt(digitalPinToInterrupt(BUTTON1), buttonEventProc, FALLING);
@@ -1139,7 +1136,6 @@ void setup()
   
   timer.setInterval(1000, SecProc);
   timer.setInterval(60000, _ShowCurrentPrice);
-  _ShowCurrentPrice();
 }
 
 void loop()
