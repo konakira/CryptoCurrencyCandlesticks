@@ -44,7 +44,7 @@ const char* bitbank_root_ca= \
      "WQPJIrSPnNVeKtelttQKbfi3QBFGmh95DmK/D5fs4C8fF5Q=\n" \
      "-----END CERTIFICATE-----\n";
 
-#define HORIZONTAL_RESOLUTION 321
+#define MAX_HORIZONTAL_RESOLUTION 321
 
 TFT_eSPI tft = TFT_eSPI();  // Invoke library, pins defined in User_Setup.h
 
@@ -101,7 +101,7 @@ itocsa(char *buf, unsigned bufsiz, unsigned n)
 #define BUTTON2 0 // GPIO0
 
 #define STICK_WIDTH 3 // width of a candle stick
-#define NUM_STICKS (HORIZONTAL_RESOLUTION / STICK_WIDTH)
+#define NUM_STICKS (MAX_HORIZONTAL_RESOLUTION / STICK_WIDTH)
 
 class Currency {
 public:
@@ -164,11 +164,7 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
   // Serial.println("\nobtainSticks called.");
 
   while (0 < n) {
-    if (!client.connect(SERVER, 443)) {
-      Serial.println("\nConnection failed!");
-      return;
-    }
-    else {
+    if (client.connect(SERVER, 443)) {
       Serial.println("\nConnected to http server.");
 
 // #define SHOW_HTTPHEADERS
@@ -200,84 +196,101 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
       Serial.println("Connection: close");
       Serial.println();
 #endif
-    
-    
-      while (client.connected()) {
-	String line = client.readStringUntil('\n');
+
+#define ERRTHRESHOLD 30
+      unsigned errcounter = 0;
+      while (client.connected() && errcounter < ERRTHRESHOLD) {
+	String line = client.readStringUntil('\n'); // timeout in 1000msec
+	if (line) {
 #ifdef SHOW_HTTPHEADERS
-	Serial.println(line); // echo response headers
+	  Serial.println(line); // echo response headers
 #endif
-	if (line == "\r") {
-	  // Serial.println("headers received");
-	  break;
+	  if (line == "\r") {
+	    // Serial.println("headers received");
+	    break;
+	  }
+	}
+	else {
+	  errcounter++;
 	}
       }
 
-      DynamicJsonDocument doc(50000);
-      DeserializationError error = deserializeJson(doc, client);
-      client.stop();
+      if (errcounter < ERRTHRESHOLD) {
+	DynamicJsonDocument doc(50000);
+	DeserializationError error = deserializeJson(doc, client);
+	client.stop();
 
-      if (error) {
-	Serial.print(F("deserializeJson() failed: "));
-	Serial.println(error.f_str());
-      }
-      else {
-	int success = doc["success"]; // 1
+	if (!error) {
+	  int success = doc["success"]; // 1
 
-	if (success) {
-	  JsonArray ohlcv = doc["data"]["candlestick"][0]["ohlcv"];
-	  unsigned nSticks = ohlcv.size();
+	  if (success) {
+	    JsonArray ohlcv = doc["data"]["candlestick"][0]["ohlcv"];
+	    unsigned nSticks = ohlcv.size();
 
-	  // Serial.print("Success = ");
-	  // Serial.println(success);
+	    // Serial.print("Success = ");
+	    // Serial.println(success);
 
-	  if (0 < lastTimeStamp) { // skip newer candlestick if any.
-	    for (int i = nSticks - 1 ; 0 < i ; i--) {
-	      // this may just remove one data at most
-	      if ((unsigned long)(ohlcv[i][5].as<unsigned long long>() / 1000) <= lastTimeStamp) {
-		nSticks = i + 1;
-		break;
+	    if (0 < lastTimeStamp) { // skip newer candlestick if any.
+	      for (int i = nSticks - 1 ; 0 < i ; i--) {
+		// this may just remove one data at most
+		if ((unsigned long)(ohlcv[i][5].as<unsigned long long>() / 1000) <= lastTimeStamp) {
+		  nSticks = i + 1;
+		  break;
+		}
 	      }
 	    }
-	  }
 	
-	  Serial.print("Number of sticks = ");
-	  Serial.print(nSticks);
-	  if (n <= nSticks) { // enough sticks obtained
-	    Serial.println(" (enough)");
-	    for (unsigned i = 0 ; i < n ; i++) {
-	      // copy the last n data from JSON
-	      unsigned ohlcvIndex = i + nSticks - n;
-	      candlesticks[i].startPrice = ohlcv[ohlcvIndex][0].as<unsigned>();
-	      candlesticks[i].highestPrice = ohlcv[ohlcvIndex][1].as<unsigned>();
-	      candlesticks[i].lowestPrice = ohlcv[ohlcvIndex][2].as<unsigned>();
-	      candlesticks[i].endPrice = ohlcv[ohlcvIndex][3].as<unsigned>();
-	      candlesticks[i].timeStamp =
-		(unsigned long)(ohlcv[ohlcvIndex][5].as<unsigned long long>() / 1000);
+	    Serial.print("Number of sticks = ");
+	    Serial.print(nSticks);
+	    if (n <= nSticks) { // enough sticks obtained
+	      Serial.println(" (enough)");
+	      for (unsigned i = 0 ; i < n ; i++) {
+		// copy the last n data from JSON
+		unsigned ohlcvIndex = i + nSticks - n;
+		candlesticks[i].startPrice = ohlcv[ohlcvIndex][0].as<unsigned>();
+		candlesticks[i].highestPrice = ohlcv[ohlcvIndex][1].as<unsigned>();
+		candlesticks[i].lowestPrice = ohlcv[ohlcvIndex][2].as<unsigned>();
+		candlesticks[i].endPrice = ohlcv[ohlcvIndex][3].as<unsigned>();
+		candlesticks[i].timeStamp =
+		  (unsigned long)(ohlcv[ohlcvIndex][5].as<unsigned long long>() / 1000);
+	      }
+	      n = 0;
 	    }
-	    n = 0;
+	    else {
+	      Serial.println(" (not enough)");
+	      for (unsigned i = 0 ; i < nSticks ; i++) {
+		// copy the all n data from JSON
+		unsigned stickIndex = i + n - nSticks;
+		candlesticks[stickIndex].startPrice = ohlcv[i][0].as<unsigned>();
+		candlesticks[stickIndex].highestPrice = ohlcv[i][1].as<unsigned>();
+		candlesticks[stickIndex].lowestPrice = ohlcv[i][2].as<unsigned>();
+		candlesticks[stickIndex].endPrice = ohlcv[i][3].as<unsigned>();
+		candlesticks[stickIndex].timeStamp =
+		  (unsigned long)(ohlcv[i][5].as<unsigned long long>() / 1000);
+	      }
+	      n -= nSticks; // to fill remaining slots
+	      t -= 24 * 60 * 60; // for data one day before
+	    }
 	  }
-	  else {
-	    Serial.println(" (not enough)");
-	    for (unsigned i = 0 ; i < nSticks ; i++) {
-	      // copy the all n data from JSON
-	      unsigned stickIndex = i + n - nSticks;
-	      candlesticks[stickIndex].startPrice = ohlcv[i][0].as<unsigned>();
-	      candlesticks[stickIndex].highestPrice = ohlcv[i][1].as<unsigned>();
-	      candlesticks[stickIndex].lowestPrice = ohlcv[i][2].as<unsigned>();
-	      candlesticks[stickIndex].endPrice = ohlcv[i][3].as<unsigned>();
-	      candlesticks[stickIndex].timeStamp =
-		(unsigned long)(ohlcv[i][5].as<unsigned long long>() / 1000);
-	    }
-	    n -= nSticks; // to fill remaining slots
-	    t -= 24 * 60 * 60; // for data one day before
+	  else { // not success
+	    Serial.println(F("deserializeJson() succeded w/ false 'success' flag."));
+	    return;
 	  }
 	}
-	else { // not success
-	  // delay(5000);
-	  // what should I do here...
+	else {
+	  Serial.print(F("deserializeJson() failed: "));
+	  Serial.println(error.f_str());
+	  return;
 	}
       }
+      else {
+	Serial.println(F("http read timedout."));
+	return;
+      }
+    }
+    else {
+      Serial.println("\nConnection failed!");
+      return;
     }
   }
   // obtaining chart's high and low
@@ -292,6 +305,8 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
     }
   }
   if (todayshigh == 0) { // if 'todayshigh' is not set
+    // set 'todayshigh' based on candlestick information
+    // actual 'todayshigh' should be set using last price, out of this routine
     unsigned today = day(candlesticks[numSticks - 1].timeStamp + TIMEZONE);
     
     for (unsigned i = 0 ; i < numSticks ; i++) {
@@ -1010,7 +1025,7 @@ void SecProc()
     tftWidth = LCD.width();
     tftHalfHeight = tftHeight / 2;
     numSticks =
-      ((tftWidth < HORIZONTAL_RESOLUTION) ? tftWidth : HORIZONTAL_RESOLUTION) / STICK_WIDTH;
+      tftWidth < MAX_HORIZONTAL_RESOLUTION) ? tftWidth / STICK_WIDTH : NUM_STICKS;
     if (numSticks != prevNumSticks) {
       currencies[cIndex].ShowCurrentPrice();
     }
@@ -1070,7 +1085,7 @@ void setup()
 
   tftHalfHeight = tftHeight / 2;
   numSticks =
-    ((tftWidth < HORIZONTAL_RESOLUTION) ? tftWidth : HORIZONTAL_RESOLUTION) / STICK_WIDTH;
+    tftWidth < MAX_HORIZONTAL_RESOLUTION) ? tftWidth / STICK_WIDTH : NUM_STICKS;
 
   currencies[0].another = 1;
 
