@@ -165,7 +165,7 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
 
   while (0 < n) {
     if (client.connect(SERVER, 443)) {
-      Serial.println("\nConnected to http server.");
+      Serial.println("\nConnected to http server for sticks.");
 
 // #define SHOW_HTTPHEADERS
 
@@ -239,7 +239,7 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
 		}
 	      }
 	    }
-	
+      
 	    Serial.print("Number of sticks = ");
 	    Serial.print(nSticks);
 	    if (n <= nSticks) { // enough sticks obtained
@@ -376,7 +376,7 @@ Currency::obtainLastPrice(unsigned long *t)
     Serial.println("Connection failed!");
   }
   else {
-    Serial.println("Connected to http server.");
+    Serial.println("Connected to http server for price.");
     // Make a HTTP request:
     client.print("GET https://" SERVER "/");
     client.print(pair);
