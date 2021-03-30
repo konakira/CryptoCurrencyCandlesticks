@@ -1,11 +1,19 @@
-#if defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5Stick_C)
+#ifdef ARDUINO_M5Stick_C
+#define ARDUINO_M5Stick_C_Plus // Just in case this is not defined for building for StickC Plus
+#endif
+
+#ifdef ARDUINO_M5Stick_C_Plus
 #include <M5StickCPlus.h>
 #else // !ARDUINO_M5Stick_C_Plus
+#ifdef ARDUINO_M5Stick_C
+#include <M5StickC.h>
+#else // !ARDUINO_M5Stick_C
 #ifdef ARDUINO_M5STACK_Core2
 #include <M5Core2.h>
 #else // !ARDUINO_M5STACK_Core2
 #include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
 #endif // !ARDUINO_M5STACK_Core2
+#endif // !ARDUINO_M5Stick_C
 #endif // !ARDUINO_M5Stick_C_Plus
 // #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -152,7 +160,6 @@ unsigned dedicatedPriceAreaHeight = 0;
 unsigned PriceFontHeight = 0;
 unsigned numSticks = 1;
 
-#define PRICE_FONT_HEIGHT_ADJUSTMENT 10
 #define TIMEZONE (9 * 60 * 60)
 #define MINIMUM_SPLITTABLE_HEIGHT 239 // for splitting screen into dual one
 #define MINIMUM_SEPARATABLE_HEIGHT 150 // for price and chart seperation
@@ -452,9 +459,21 @@ static bool currencyRotationTriggered = false;
 #define PRICE_PAD_Y 10
 #define BORDER_WIDTH 2
 
+#if defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus)
+#define PRICEFONT 4
+#define OTHER_CURRENCY_BASE_VALUE_FONT 2
+#define PRICE_FONT_HEIGHT_ADJUSTMENT 2
+#define CONNECTINGFONT 4
+#define BASE_DIFF 0 // base difference between relative price font and its unit font
+#else
 #define PRICE_FONT FF44 // 20, 24, (36,) 44 are candidates for a price font
-  
+#define PRICEFONT GFXFF
 #define OTHER_CURRENCY_BASE_VALUE_FONT 4
+#define PRICE_FONT_HEIGHT_ADJUSTMENT 10
+#define CONNECTINGFONT 4
+#define BASE_DIFF 4 // base difference between relative price font and its unit font
+#endif
+  
 #define TFT_DOWNRED 0xC000 /* 127,   0,   0 */
 #define TFT_UPGREEN 0x0600 /*   0, 128,   0 */
 // #define TFT_RED         0xF800      /* 255,   0,   0 */
@@ -494,10 +513,8 @@ ShowLastPrice(char *buf, int lastPricePixel, unsigned priceColor, int yoff)
     }
     textY += yoff;
   }
-  DrawStringWithShade(buf, 0, textY, GFXFF, priceColor, BORDER_WIDTH);
+  DrawStringWithShade(buf, 0, textY, PRICEFONT, priceColor, BORDER_WIDTH);
 }
-
-#define BASE_DIFF 4
 
 void
 ShowRelativePrice(char *buf, const char *name, int lastPricePixel, unsigned priceColor, int yoff)
@@ -522,7 +539,7 @@ ShowRelativePrice(char *buf, const char *name, int lastPricePixel, unsigned pric
       textY -= LCD.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT);
     }
   }
-  DrawStringWithShade(buf, 0, textY + yoff, OTHER_CURRENCY_BASE_VALUE_FONT, priceColor, BORDER_WIDTH);
+  DrawStringWithShade(buf, PADX, textY + yoff, OTHER_CURRENCY_BASE_VALUE_FONT, priceColor, BORDER_WIDTH);
   DrawStringWithShade(name,
 		      PADX + LCD.textWidth(buf, OTHER_CURRENCY_BASE_VALUE_FONT),
 		      textY + yoff + LCD.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT) - LCD.fontHeight(2) - BASE_DIFF, 2, priceColor, BORDER_WIDTH);
@@ -596,8 +613,8 @@ private:
     LCD.drawString(alertmesg1, PADX, PADY + yoff, 4);
     LCD.drawString(alertmesg2, PADX, LCD.fontHeight(4) + PADY + yoff, 4);
     LCD.drawString(buf,
-		   tftWidth / 2 - LCD.textWidth(buf, GFXFF) / 2,
-		   tftHeight - PriceFontHeight + yoff, GFXFF);
+		   tftWidth / 2 - LCD.textWidth(buf, PRICEFONT) / 2,
+		   tftHeight - PriceFontHeight + yoff, PRICEFONT);
   }
   char buf[PRICEBUFSIZE];
   const char *alertmesg1;
@@ -1055,8 +1072,8 @@ void SecProc()
 
 	LCD.setTextColor(TFT_WHITE, TFT_BLUE);
 	LCD.drawString(CONNECTION_LOST,
-		       tftWidth / 2 - LCD.textWidth(CONNECTION_LOST, 4) / 2,
-		       tftHalfHeight - LCD.fontHeight(4) / 2, 4);
+		       tftWidth / 2 - LCD.textWidth(CONNECTION_LOST, CONNECTINGFONT) / 2,
+		       tftHalfHeight - LCD.fontHeight(CONNECTINGFONT) / 2, CONNECTINGFONT);
       }
       else { // not connected so far
 	WiFi.begin(WIFIAP, WIFIPW);
@@ -1065,7 +1082,7 @@ void SecProc()
 	LCD.fillScreen(TFT_BLUE);
 	LCD.setTextColor(TFT_WHITE);
 	LCD.drawString("Connecting ...",
-		       PADX, LCD.height() / 2 - LCD.fontHeight(4) / 2, 4);
+		       PADX, LCD.height() / 2 - LCD.fontHeight(CONNECTINGFONT) / 2, CONNECTINGFONT);
       }
     }
     if (WIFI_ATTEMPT_LIMIT < nWiFiTrial) {
@@ -1129,8 +1146,10 @@ void setup()
 
   LCD.setTextPadding(PADX); // seems no effect by this line.
   LCD.setTextSize(1);
+#if !(defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus))
   LCD.setFreeFont(PRICE_FONT); // Select a font for last price display
-  PriceFontHeight = LCD.fontHeight(GFXFF) - PRICE_FONT_HEIGHT_ADJUSTMENT;
+#endif
+  PriceFontHeight = LCD.fontHeight(PRICEFONT) - PRICE_FONT_HEIGHT_ADJUSTMENT;
 
   unsigned priceHeight = PriceFontHeight + LCD.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT);
   if (MINIMUM_SEPARATABLE_HEIGHT < tftHeight - priceHeight) {
@@ -1146,7 +1165,7 @@ void setup()
   LCD.fillScreen(TFT_BLUE);
   LCD.setTextColor(TFT_WHITE);
   LCD.drawString("Connecting ...",
-		 PADX, LCD.height() / 2 - LCD.fontHeight(4) / 2, 4);
+		 PADX, LCD.height() / 2 - LCD.fontHeight(CONNECTINGFONT) / 2, CONNECTINGFONT);
 
 #if !defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus) && !defined(ARDUINO_M5STACK_Core2)
   attachInterrupt(digitalPinToInterrupt(BUTTON1), buttonEventProc, FALLING);
