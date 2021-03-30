@@ -142,7 +142,7 @@ public:
   void obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp);
   void calcRelative();
   void ShowChart(int yoff);
-  void ShowCurrentPrice();
+  void ShowCurrentPrice(bool forceReloadSticks);
   void GreyoutPrice();
   void SwitchCurrency();
   void ShowCurrencyName(const char *buf, int yoff);
@@ -901,7 +901,7 @@ alertProc()
 }
 
 void
-Currency::ShowCurrentPrice()
+Currency::ShowCurrentPrice(bool forceReloadSticks)
 {
   unsigned long t; // for current time
   unsigned long prevTime;
@@ -928,8 +928,9 @@ Currency::ShowCurrentPrice()
   Serial.print("last price = ");
   Serial.println(buf);
   // obtaining today's low and today's high
-  if (0 < price
-      && (0 == prevTime
+  if (forceReloadSticks ||
+      /* (0 < price && */
+      (0 == prevTime
 	  || (minute(prevTimeStamp) % CANDLESTICK_WIDTH_MIN) < (minute(prevTime) % CANDLESTICK_WIDTH_MIN))) {
     // I forgot what '0 < price' means
     // Meaning of '(minute(prevTimeStamp) % CANDLESTICK_WIDTH_MIN) < (minute(prevTime) % CANDLESTICK_WIDTH_MIN)'
@@ -995,7 +996,7 @@ void
 _ShowCurrentPrice()
 {
   if (WiFi.status() == WL_CONNECTED) {
-    currencies[cIndex].ShowCurrentPrice();
+    currencies[cIndex].ShowCurrentPrice(false);
   }
 }
 
@@ -1035,7 +1036,7 @@ void SecProc()
       numSticks =
 	(tftWidth < MAX_HORIZONTAL_RESOLUTION) ? tftWidth / STICK_WIDTH : NUM_STICKS;
       if (numSticks != prevNumSticks) {
-	currencies[cIndex].ShowCurrentPrice();
+	currencies[cIndex].ShowCurrentPrice(true);
       }
       else {
 	redrawChart(cIndex);
