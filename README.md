@@ -1,6 +1,6 @@
 # CryptoCurrencyCandlesticks
 
-![Running Image](images/TTGO-ETH.jpeg "Running Image")
+![Running Image](images/M5family.jpeg "Running Image")
 
 This is a program which turns a US$10 cheap ESP32 device with color LCD display (TTGO) into a candlestick display terminal for Ethereum. At this point, it just supports the pair of Ethereum and Japanese Yen.
 
