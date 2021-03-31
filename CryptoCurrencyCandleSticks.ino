@@ -1061,10 +1061,12 @@ void SecProc()
     if (nWiFiTrial++ == 0) {
       if (0 < currencies[cIndex].price) { // connected before but lost
 	// Grey out the price display
+#if 0
 	currencies[cIndex].GreyoutPrice();
 	if (1 < numScreens) {
 	  currencies[1 - cIndex].GreyoutPrice();
 	}
+#endif
 
 #define CONNECTION_LOST "Reconnecting ..."
 	// WiFi.begin(WIFIAP, WIFIPW);
@@ -1074,7 +1076,7 @@ void SecProc()
 	LCD.setTextColor(TFT_WHITE, TFT_BLUE);
 	LCD.drawString(CONNECTION_LOST,
 		       tftWidth / 2 - LCD.textWidth(CONNECTION_LOST, CONNECTINGFONT) / 2,
-		       tftHalfHeight - LCD.fontHeight(CONNECTINGFONT) / 2, CONNECTINGFONT);
+		       LCD.height() / 2 - LCD.fontHeight(CONNECTINGFONT) / 2, CONNECTINGFONT);
       }
       else { // not connected so far
 	WiFi.begin(WIFIAP, WIFIPW);
