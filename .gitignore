@@ -1,4 +1,6 @@
 # Prerequisites
+lib
+test
 auth.h
 Free_Fonts.h
 platformio.ini
