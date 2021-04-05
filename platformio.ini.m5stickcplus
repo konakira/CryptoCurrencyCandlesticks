@@ -17,6 +17,8 @@ lib_deps =
 	jfturcot/SimpleTimer@0.0.0-alpha+sha.b30890b8f7
 	paulstoffregen/Time@^1.6
 	m5stack/M5StickCPlus@^0.0.1
+build_flags =
+  -DARDUINO_M5Stick_C_Plus
 
 ; Custom Serial Monitor speed (baud rate)
 monitor_speed = 115200
