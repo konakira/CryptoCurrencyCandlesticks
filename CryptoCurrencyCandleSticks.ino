@@ -8,10 +8,15 @@
 #include <M5Core2.h>
 #else // !ARDUINO_M5STACK_Core2
 #ifndef TTGO // custom ESP32
+const int cds = 39; // VP=36, VN=39
+static bool backlight_is_on = true;
 #define CUSTOM_ESP32_TFT // for later compile switch
 #define ESP32_DEFAULT_ROTATION 0
+#define BUTTON1 0 // GPIO0
 #else
 #define ESP32_DEFAULT_ROTATION 1
+#define BUTTON1 35 // GPIO35, not sure this works or not
+#define BUTTON2 0 // GPIO0
 #endif // !TTGO
 #include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
 #endif // !ARDUINO_M5STACK_Core2
@@ -106,9 +111,6 @@ itocsa(char *buf, unsigned bufsiz, unsigned n)
 
 #define CANDLESTICK_WIDTH "5min"
 #define CANDLESTICK_WIDTH_MIN 5
-
-#define BUTTON1 35 // GPIO35
-#define BUTTON2 0 // GPIO0
 
 #define STICK_WIDTH 3 // width of a candle stick
 #define NUM_STICKS (MAX_HORIZONTAL_RESOLUTION / STICK_WIDTH)
@@ -1008,6 +1010,22 @@ static bool WiFiConnected = false;
 void SecProc()
 {
   static unsigned nWiFiTrial = 0;
+
+#ifdef TFT_BL
+  // control LED Backlight
+  unsigned br = analogRead(cds);
+  if (br < 1 && backlight_is_on) {
+    digitalWrite(TFT_BL, LOW);
+    backlight_is_on = false;
+    Serial.println("Back light turned off");
+  }
+  else if (0 < br && !backlight_is_on) {
+    digitalWrite(TFT_BL, TFT_BACKLIGHT_ON);
+    backlight_is_on = true;
+    Serial.print("Back light turned on. CdS = ");
+    Serial.println(br);
+  }
+#endif
   
   if (WiFi.status() == WL_CONNECTED) {
     if (!WiFiConnected) {
@@ -1132,6 +1150,13 @@ void setup()
   Serial.println("");
   Serial.println("CryptoCurrency candlestick chart display terminal started.");
 
+#ifdef TFT_BL
+  pinMode(cds, INPUT);
+  pinMode(TFT_BL, OUTPUT);
+  digitalWrite(TFT_BL, TFT_BACKLIGHT_ON);
+  backlight_is_on = true;
+#endif
+
 #if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
 #ifdef ARDUINO_M5STACK_Core2
   M5.Lcd.setRotation(1); // set it to 1 or 3 for landscape resolution
@@ -1176,8 +1201,10 @@ void setup()
   LCD.drawString("Connecting ...",
 		 PADX, LCD.height() / 2 - LCD.fontHeight(CONNECTINGFONT) / 2, CONNECTINGFONT);
 
-#if !defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus) && !defined(ARDUINO_M5STACK_Core2)
+#ifdef BUTTON1
   attachInterrupt(digitalPinToInterrupt(BUTTON1), buttonEventProc, FALLING);
+#endif
+#ifdef BUTTON2
   attachInterrupt(digitalPinToInterrupt(BUTTON2), buttonEventProc, FALLING);
 #endif
   
