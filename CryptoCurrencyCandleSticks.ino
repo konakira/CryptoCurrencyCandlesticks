@@ -1,7 +1,3 @@
-#ifdef ARDUINO_M5Stick_C
-#define ARDUINO_M5Stick_C_Plus // Just in case this is not defined for building for StickC Plus
-#endif
-
 #ifdef ARDUINO_M5Stick_C_Plus
 #include <M5StickCPlus.h>
 #else // !ARDUINO_M5Stick_C_Plus
@@ -11,6 +7,12 @@
 #ifdef ARDUINO_M5STACK_Core2
 #include <M5Core2.h>
 #else // !ARDUINO_M5STACK_Core2
+#ifndef TTGO // custom ESP32
+#define CUSTOM_ESP32_TFT // for later compile switch
+#define ESP32_DEFAULT_ROTATION 0
+#else
+#define ESP32_DEFAULT_ROTATION 1
+#endif // !TTGO
 #include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
 #endif // !ARDUINO_M5STACK_Core2
 #endif // !ARDUINO_M5Stick_C
@@ -1044,6 +1046,7 @@ void SecProc()
     }
     if (currencyRotationTriggered) { // currency and screen rotation change triggered
       currencyRotationTriggered = false;
+#ifdef TTGO
       static const unsigned cur_rot[4] = {1, 2, 3, 0};
       unsigned r = (LCD.getRotation() & 2); // 1 to 0, 3 to 1. no choice for 2 and 4
       unsigned cr = r + cIndex;
@@ -1054,6 +1057,9 @@ void SecProc()
       if (cIndex != cr % 2) {
 	currencies[cIndex].SwitchCurrency();
       }
+#else
+      currencies[cIndex].SwitchCurrency();
+#endif
     }
   }
   else { // if FiFi.status() != WL_CONNECTED
@@ -1136,7 +1142,7 @@ void setup()
   tftWidth = M5.Lcd.width();
   M5.Lcd.fillScreen(BLACK);
 #else
-  tft.setRotation(1); // set it to 1 or 3 for landscape resolution
+  tft.setRotation(ESP32_DEFAULT_ROTATION); // set it to 1 or 3 for landscape resolution
   tftHeight = tft.height() / numScreens;
   tftWidth = tft.width();
 #endif
