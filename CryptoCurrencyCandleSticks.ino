@@ -999,24 +999,19 @@ void Currency::SwitchCurrency()
 void
 _ShowCurrentPrice()
 {
-#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
-#ifdef ARDUINO_M5STACK_Core2
-  double vbat = M5.Axp.GetBatVoltage();
-#else
-  int charge = M5.Axp.GetIchargeData();
-  double vbat = M5.Axp.GetVbatData() * 1.1 / 1000;
-  Serial.print("Charging current = ");
-  Serial.print(charge);
-  Serial.println("mA");
-#endif
-  Serial.print("Battery voltage = ");
-  Serial.print(vbat);
-  Serial.println("V");
-#endif
-  
   if (WiFi.status() == WL_CONNECTED) {
     currencies[cIndex].ShowCurrentPrice(false);
   }
+#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
+  double vbat = M5.Axp.GetBatVoltage();
+  uint8_t charging = M5.Axp.GetBatCurrent();
+  Serial.print("Battery voltage = ");
+  Serial.print(vbat);
+  Serial.print("V, ");
+  Serial.print("Charging = ");
+  Serial.print(charging);
+  Serial.println("mA");
+#endif
 }
 
 #define WIFI_ATTEMPT_LIMIT 30 // seconds for WiFi connection trial
@@ -1155,7 +1150,7 @@ void setup()
 #if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
   // initialize the M5StickC object
   M5.begin();
-  M5.Axp.begin();
+  //  M5.Axp.begin();
   delay(500);
 #else
   // initialize TFT screen
