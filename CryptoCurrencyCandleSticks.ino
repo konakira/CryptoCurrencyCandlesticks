@@ -999,6 +999,21 @@ void Currency::SwitchCurrency()
 void
 _ShowCurrentPrice()
 {
+#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
+#ifdef ARDUINO_M5STACK_Core2
+  double vbat = M5.Axp.GetBatVoltage();
+#else
+  int charge = M5.Axp.GetIchargeData();
+  double vbat = M5.Axp.GetVbatData() * 1.1 / 1000;
+  Serial.print("Charging current = ");
+  Serial.print(charge);
+  Serial.println("mA");
+#endif
+  Serial.print("Battery voltage = ");
+  Serial.print(vbat);
+  Serial.println("V");
+#endif
+  
   if (WiFi.status() == WL_CONNECTED) {
     currencies[cIndex].ShowCurrentPrice(false);
   }
@@ -1011,7 +1026,7 @@ void SecProc()
 {
   static unsigned nWiFiTrial = 0;
 
-#ifdef TFT_BL
+#if defined(TFT_BL) && 0 < TFT_BL
   // control LED Backlight
   unsigned br = analogRead(cds);
   if (br < 1 && backlight_is_on) {
@@ -1140,6 +1155,7 @@ void setup()
 #if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
   // initialize the M5StickC object
   M5.begin();
+  M5.Axp.begin();
   delay(500);
 #else
   // initialize TFT screen
@@ -1150,7 +1166,7 @@ void setup()
   Serial.println("");
   Serial.println("CryptoCurrency candlestick chart display terminal started.");
 
-#ifdef TFT_BL
+#if defined(TFT_BL) && 0 < TFT_BL
   pinMode(cds, INPUT);
   pinMode(TFT_BL, OUTPUT);
   digitalWrite(TFT_BL, TFT_BACKLIGHT_ON);
