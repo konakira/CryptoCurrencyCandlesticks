@@ -999,7 +999,8 @@ void Currency::SwitchCurrency()
 #if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
 #define MIN_VOLTAGE 3.0
 #define MAX_VOLTAGE 4.2
-
+#define TOP_OFFSET 1 // per 10
+#define HEIGHT_RANGE 8 // per 10
 void
 ShowBatteryStatus()
 {
@@ -1008,9 +1009,10 @@ ShowBatteryStatus()
   unsigned batstat = (unsigned)((vbat - MIN_VOLTAGE) * 100 / (MAX_VOLTAGE - MIN_VOLTAGE));
   char buf[6];
   sprintf(buf, "%d%%", batstat);
-  unsigned fHeight = LCD.fontHeight(2);
-  unsigned left = 1, right = (fHeight - 2) * 2 - 1;
-  unsigned top = LCD.height() - fHeight + 1, bottom = LCD.height() - 1;
+  unsigned fHeight = LCD.fontHeight(2), ftop = LCD.height() - fHeight;
+  unsigned top = ftop + ((fHeight - 2) * TOP_OFFSET / 10) + 1;
+  unsigned bottom = top + (fHeight - 2) * HEIGHT_RANGE / 10;
+  unsigned left = 1, right = (bottom - top - 2) * 2 - 1;
   unsigned pluslen = (bottom - top) / 3;
     
   LCD.fillRect(left - 1, top - 1, right - left + 3, bottom - top + 2, TFT_BLACK);
@@ -1022,7 +1024,7 @@ ShowBatteryStatus()
   LCD.fillRect(left + 2, top + 2,
 	       (right - left - 4) * batstat / 100, bottom - top - 3, TFT_WHITE);
 	       
-  DrawStringWithShade(buf, right + 5, top - 1, 2, TFT_WHITE, 1);
+  DrawStringWithShade(buf, right + 5, ftop, 2, TFT_WHITE, 1);
 }
 #endif
 
