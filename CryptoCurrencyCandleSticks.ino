@@ -147,7 +147,6 @@ public:
   void calcRelative();
   void ShowChart(int yoff);
   void ShowCurrentPrice(bool forceReloadSticks);
-  void GreyoutPrice();
   void SwitchCurrency();
   void ShowCurrencyName(const char *buf, int yoff);
   void ShowUpdating(int yoff);
@@ -500,12 +499,74 @@ DrawStringWithShade(const char *buf, int x, int y, unsigned font, int color, int
   LCD.drawString(buf, x, y, font);
 }
 
+#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
+#define MIN_VOLTAGE 3.0
+#define MAX_VOLTAGE 4.2
+#define TOP_OFFSET 1 // per 10
+#define HEIGHT_RANGE 8 // per 10
+#define BAT_POS_TOPRIGHT 1
+#define BAT_POS_TOPLEFT 2
+#define BAT_POS_BOTTOMLEFT 3
+void
+ShowBatteryStatus(unsigned position)
+{
+  double vbat = M5.Axp.GetBatVoltage();
+  // uint8_t charging = M5.Axp.GetBatCurrent();
+  unsigned batstat = (unsigned)((vbat - MIN_VOLTAGE) * 100 / (MAX_VOLTAGE - MIN_VOLTAGE));
+  char buf[6];
+  sprintf(buf, "%d%%", batstat);
+  unsigned fHeight = LCD.fontHeight(2);
+  unsigned batxoff = 1;
+  unsigned batyoff = ((fHeight - 2) * TOP_OFFSET / 10) + 1;
+  unsigned batheight = (fHeight - 2) * HEIGHT_RANGE / 10;
+  unsigned batwidth = (batheight - 2) * 2 - 2;
+  unsigned pluslen = batheight / 3;
+
+  unsigned top, bottom, left, right;
+
+  switch (position) {
+  case BAT_POS_TOPLEFT:
+    top = batyoff;
+    left = batxoff;
+    break;
+  case BAT_POS_BOTTOMLEFT:
+    top = LCD.height() - fHeight + batyoff;
+    left = batxoff;
+    break;
+  case BAT_POS_TOPRIGHT:
+  default:
+    top = batyoff;
+    left = LCD.width() - batwidth - LCD.textWidth("100%", 2);
+    break;
+  }
+  bottom = top + batheight;
+  right = left + batwidth;
+    
+  LCD.fillRect(left - 1, top - 1, right - left + 3, bottom - top + 2, TFT_BLACK);
+  LCD.drawLine(left + 1, top, right - 3, top, TFT_LIGHTGREY);
+  LCD.drawLine(left + 1, bottom, right - 3, bottom, TFT_LIGHTGREY);
+  LCD.drawLine(left, top + 1, left, bottom - 1, TFT_LIGHTGREY);
+  LCD.drawLine(right - 2, top + 1, right - 2, bottom - 1, TFT_LIGHTGREY);
+  LCD.fillRect(right, top + (bottom - top - pluslen) / 2, 2, pluslen, TFT_LIGHTGREY);
+  LCD.fillRect(left + 2, top + 2,
+	       (right - left - 4) * batstat / 100, bottom - top - 3, TFT_WHITE);
+	       
+  DrawStringWithShade(buf, right + 5, top - batyoff, 2, TFT_WHITE, 1);
+}
+#else
+void
+ShowBatteryStatus(unsigned position) {}
+#endif
+
 void
 ShowLastPrice(char *buf, int lastPricePixel, unsigned priceColor, int yoff)
 {
   int textY;
   if (dedicatedPriceAreaHeight) {
     textY = 0;
+    if (yoff == 0) {
+      ShowBatteryStatus(BAT_POS_TOPRIGHT);
+    }
   }
   else {
     textY = lastPricePixel - (PriceFontHeight / 2);
@@ -516,6 +577,9 @@ ShowLastPrice(char *buf, int lastPricePixel, unsigned priceColor, int yoff)
       textY = tftHeight - PriceFontHeight + PRICE_PAD_Y;
     }
     textY += yoff;
+    if (yoff == 0) {
+      ShowBatteryStatus(LCD.fontHeight(2) < textY ? BAT_POS_TOPLEFT : BAT_POS_BOTTOMLEFT);
+    }
   }
   DrawStringWithShade(buf, 0, textY, PRICEFONT, priceColor, BORDER_WIDTH);
 }
@@ -792,20 +856,6 @@ Currency::calcRelative()
 }
 
 void
-Currency::GreyoutPrice()
-{
-  char buf[PRICEBUFSIZE], buf2[PRICEBUFSIZE];
-
-  static int yoff = (1 < numScreens) ? tftHeight : 0; /// this is very temporal
-  // To be modified
-  
-  itocsa(buf, PRICEBUFSIZE, prevPrice);
-  ShowLastPrice(buf, pricePixel, TFT_DARKGREY, yoff); // make the price grey
-  snprintf(buf2, PRICEBUFSIZE, "%.5f", relative);
-  ShowRelativePrice(buf2, currencies[another].name, pricePixel, TFT_DARKGREY, yoff);
-}
-
-void
 Currency::setAlert(class alert a)
 {
   // today's high or low
@@ -996,47 +1046,12 @@ void Currency::SwitchCurrency()
   redrawChart(cIndex);
 }
 
-#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
-#define MIN_VOLTAGE 3.0
-#define MAX_VOLTAGE 4.2
-#define TOP_OFFSET 1 // per 10
-#define HEIGHT_RANGE 8 // per 10
-void
-ShowBatteryStatus()
-{
-  double vbat = M5.Axp.GetBatVoltage();
-  // uint8_t charging = M5.Axp.GetBatCurrent();
-  unsigned batstat = (unsigned)((vbat - MIN_VOLTAGE) * 100 / (MAX_VOLTAGE - MIN_VOLTAGE));
-  char buf[6];
-  sprintf(buf, "%d%%", batstat);
-  unsigned fHeight = LCD.fontHeight(2), ftop = LCD.height() - fHeight;
-  unsigned top = ftop + ((fHeight - 2) * TOP_OFFSET / 10) + 1;
-  unsigned bottom = top + (fHeight - 2) * HEIGHT_RANGE / 10;
-  unsigned left = 1, right = (bottom - top - 2) * 2 - 1;
-  unsigned pluslen = (bottom - top) / 3;
-    
-  LCD.fillRect(left - 1, top - 1, right - left + 3, bottom - top + 2, TFT_BLACK);
-  LCD.drawLine(left + 1, top, right - 3, top, TFT_LIGHTGREY);
-  LCD.drawLine(left + 1, bottom, right - 3, bottom, TFT_LIGHTGREY);
-  LCD.drawLine(left, top + 1, left, bottom - 1, TFT_LIGHTGREY);
-  LCD.drawLine(right - 2, top + 1, right - 2, bottom - 1, TFT_LIGHTGREY);
-  LCD.fillRect(right, top + (bottom - top - pluslen) / 2, 2, pluslen, TFT_LIGHTGREY);
-  LCD.fillRect(left + 2, top + 2,
-	       (right - left - 4) * batstat / 100, bottom - top - 3, TFT_WHITE);
-	       
-  DrawStringWithShade(buf, right + 5, ftop, 2, TFT_WHITE, 1);
-}
-#endif
-
 void
 _ShowCurrentPrice()
 {
   if (WiFi.status() == WL_CONNECTED) {
     currencies[cIndex].ShowCurrentPrice(false);
   }
-#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
-  ShowBatteryStatus();
-#endif
 }
 
 #define WIFI_ATTEMPT_LIMIT 30 // seconds for WiFi connection trial
@@ -1120,12 +1135,6 @@ void SecProc()
     if (nWiFiTrial++ == 0) {
       if (0 < currencies[cIndex].price) { // connected before but lost
 	// Grey out the price display
-#if 0
-	currencies[cIndex].GreyoutPrice();
-	if (1 < numScreens) {
-	  currencies[1 - cIndex].GreyoutPrice();
-	}
-#endif
 
 #define CONNECTION_LOST "Reconnecting ..."
 	// WiFi.begin(WIFIAP, WIFIPW);
