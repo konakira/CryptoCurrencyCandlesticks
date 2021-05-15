@@ -996,6 +996,28 @@ void Currency::SwitchCurrency()
   redrawChart(cIndex);
 }
 
+#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
+#define MIN_VOLTAGE 3.0
+#define MAX_VOLTAGE 4.2
+
+void
+ShowBatteryStatus()
+{
+  double vbat = M5.Axp.GetBatVoltage();
+  uint8_t charging = M5.Axp.GetBatCurrent();
+  unsigned batstat = (unsigned)((vbat - MIN_VOLTAGE) * 100 / (MAX_VOLTAGE - MIN_VOLTAGE));
+  char buf[6];
+#if 0
+  if (0 < charging) {
+    sprintf(buf, "%d%%C", batstat);
+  }
+  else
+#endif
+    sprintf(buf, "%d%%", batstat);
+  DrawStringWithShade(buf, 0, LCD.height() - LCD.fontHeight(2), 2, TFT_WHITE, 1);
+}
+#endif
+
 void
 _ShowCurrentPrice()
 {
@@ -1003,14 +1025,7 @@ _ShowCurrentPrice()
     currencies[cIndex].ShowCurrentPrice(false);
   }
 #if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
-  double vbat = M5.Axp.GetBatVoltage();
-  uint8_t charging = M5.Axp.GetBatCurrent();
-  Serial.print("Battery voltage = ");
-  Serial.print(vbat);
-  Serial.print("V, ");
-  Serial.print("Charging = ");
-  Serial.print(charging);
-  Serial.println("mA");
+  ShowBatteryStatus();
 #endif
 }
 
