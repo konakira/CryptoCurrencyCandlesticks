@@ -1004,17 +1004,25 @@ void
 ShowBatteryStatus()
 {
   double vbat = M5.Axp.GetBatVoltage();
-  uint8_t charging = M5.Axp.GetBatCurrent();
+  // uint8_t charging = M5.Axp.GetBatCurrent();
   unsigned batstat = (unsigned)((vbat - MIN_VOLTAGE) * 100 / (MAX_VOLTAGE - MIN_VOLTAGE));
   char buf[6];
-#if 0
-  if (0 < charging) {
-    sprintf(buf, "%d%%C", batstat);
-  }
-  else
-#endif
-    sprintf(buf, "%d%%", batstat);
-  DrawStringWithShade(buf, 0, LCD.height() - LCD.fontHeight(2), 2, TFT_WHITE, 1);
+  sprintf(buf, "%d%%", batstat);
+  unsigned fHeight = LCD.fontHeight(2);
+  unsigned left = 1, right = (fHeight - 2) * 2 - 1;
+  unsigned top = LCD.height() - fHeight + 1, bottom = LCD.height() - 1;
+  unsigned pluslen = (bottom - top) / 3;
+    
+  LCD.fillRect(left - 1, top - 1, right - left + 3, bottom - top + 2, TFT_BLACK);
+  LCD.drawLine(left + 1, top, right - 3, top, TFT_LIGHTGREY);
+  LCD.drawLine(left + 1, bottom, right - 3, bottom, TFT_LIGHTGREY);
+  LCD.drawLine(left, top + 1, left, bottom - 1, TFT_LIGHTGREY);
+  LCD.drawLine(right - 2, top + 1, right - 2, bottom - 1, TFT_LIGHTGREY);
+  LCD.fillRect(right, top + (bottom - top - pluslen) / 2, 2, pluslen, TFT_LIGHTGREY);
+  LCD.fillRect(left + 2, top + 2,
+	       (right - left - 4) * batstat / 100, bottom - top - 3, TFT_WHITE);
+	       
+  DrawStringWithShade(buf, right + 5, top - 1, 2, TFT_WHITE, 1);
 }
 #endif
 
