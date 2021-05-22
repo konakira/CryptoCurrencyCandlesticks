@@ -7,18 +7,21 @@
 #ifdef ARDUINO_M5STACK_Core2
 #include <M5Core2.h>
 #else // !ARDUINO_M5STACK_Core2
+#include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
 #ifndef TTGO // custom ESP32
 const int cds = 39; // VP=36, VN=39
 static bool backlight_is_on = true;
 #define CUSTOM_ESP32_TFT // for later compile switch
 #define ESP32_DEFAULT_ROTATION 0
 #define BUTTON1 0 // GPIO0
-#else
+#else // TTGO
 #define ESP32_DEFAULT_ROTATION 1
 #define BUTTON1 35 // GPIO35, not sure this works or not
 #define BUTTON2 0 // GPIO0
-#endif // !TTGO
-#include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
+#ifdef TFT_BL
+#undef TFT_BL
+#endif
+#endif // TTGO
 #endif // !ARDUINO_M5STACK_Core2
 #endif // !ARDUINO_M5Stick_C
 #endif // !ARDUINO_M5Stick_C_Plus
@@ -414,7 +417,7 @@ Currency::obtainLastPrice(unsigned long *t)
 
     // Allocate the JSON document
     // Use arduinojson.org/v6/assistant to compute the capacity.
-    StaticJsonDocument<256> doc;
+    StaticJsonDocument<512> doc;
 
     // Parse JSON object
     DeserializationError error = deserializeJson(doc, client);
@@ -499,14 +502,14 @@ DrawStringWithShade(const char *buf, int x, int y, unsigned font, int color, int
   LCD.drawString(buf, x, y, font);
 }
 
+#define BAT_POS_TOPRIGHT 1
+#define BAT_POS_TOPLEFT 2
+#define BAT_POS_BOTTOMLEFT 3
 #if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
 #define MIN_VOLTAGE 3.0
 #define MAX_VOLTAGE 4.2
 #define TOP_OFFSET 1 // per 10
 #define HEIGHT_RANGE 8 // per 10
-#define BAT_POS_TOPRIGHT 1
-#define BAT_POS_TOPLEFT 2
-#define BAT_POS_BOTTOMLEFT 3
 void
 ShowBatteryStatus(unsigned position)
 {
@@ -719,6 +722,9 @@ Currency::ShowChart(int yoff)
   }
   else if (price < lowest) {
     lowest = price;
+  }
+  if (lowest == highest) {
+    return;
   }
   
   // draw horizontal price lines
