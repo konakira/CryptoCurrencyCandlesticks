@@ -297,6 +297,66 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
 	    }
 	    if (n <= nSticks) {
 	      n = 0;
+
+	      if (todayshigh == 0) { // if 'todayshigh' is not set
+		// set 'todayshigh' based on candlestick information
+		// actual 'todayshigh' should be set using last price, out of this routine
+		unsigned today = day(candlesticks[numSticks - 1].timeStamp + TIMEZONE);
+
+		if (day(candlesticks[0].timeStamp + TIMEZONE) == today) {
+		  unsigned long ts;
+		  bool needMoreSticks = false;
+		  // have to check the data before the first item in candlesticks[]
+		  // This is in order to obtain the real "today's high" and "low".
+		  // Note that this does not work in the case that 9:00am is out of holizontal range
+		  // This should be fixed in the future version.
+		  ts = (unsigned long)(ohlcv[0][5].as<unsigned long long>() / 1000);
+		  if (day(ts + TIMEZONE) == today) {
+		    // Not enough data to obtain today's high and low
+		    // This should be programmed in the future
+		    needMoreSticks = true;
+		  }
+		  
+		  for (unsigned i = 0 ; i < nSticks - n ; i++) {
+		    unsigned h, l;
+		    
+		    // get necessary data from JSON
+		    h = ohlcv[i][1].as<unsigned>();
+		    l = ohlcv[i][2].as<unsigned>();
+		    ts = (unsigned long)(ohlcv[i][5].as<unsigned long long>() / 1000);
+		    if (day(ts + TIMEZONE) == today) {
+		      if (todayshigh == 0) {
+			todayshigh = h;
+			todayslow = l;
+		      }
+		      else if (todayshigh < h) {
+			todayshigh = h;
+		      }
+		      else if (l < todayslow) {
+			todayslow = l;
+		      }
+		    }
+		  }
+		  if (needMoreSticks) {
+		    // Should be programmed here in the future
+		  }
+		}
+		for (unsigned i = 0 ; i < numSticks ; i++) {
+		  if (day(candlesticks[i].timeStamp + TIMEZONE) == today) {
+		    if (todayshigh == 0) {
+		      todayshigh = candlesticks[i].highestPrice;
+		      todayslow = candlesticks[i].lowestPrice;
+		    }
+		    else if (todayshigh < candlesticks[i].highestPrice) {
+		      todayshigh = candlesticks[i].highestPrice;
+		    }
+		    else if (candlesticks[i].lowestPrice < todayslow) {
+		      todayslow = candlesticks[i].lowestPrice;
+		    }
+		  }
+		}
+	      }
+	      
 	    }
 	    else {
 	      n -= nSticks; // to fill remaining slots
@@ -333,26 +393,6 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
     }
     if (highest < candlesticks[i].highestPrice) {
       highest = candlesticks[i].highestPrice;
-    }
-  }
-  if (todayshigh == 0) { // if 'todayshigh' is not set
-    // set 'todayshigh' based on candlestick information
-    // actual 'todayshigh' should be set using last price, out of this routine
-    unsigned today = day(candlesticks[numSticks - 1].timeStamp + TIMEZONE);
-    
-    for (unsigned i = 0 ; i < numSticks ; i++) {
-      if (day(candlesticks[i].timeStamp + TIMEZONE) == today) {
-	if (todayshigh == 0) {
-	  todayshigh = candlesticks[i].highestPrice;
-	  todayslow = candlesticks[i].lowestPrice;
-	}
-	else if (todayshigh < candlesticks[i].highestPrice) {
-	  todayshigh = candlesticks[i].highestPrice;
-	}
-	else if (candlesticks[i].lowestPrice < todayslow) {
-	  todayslow = candlesticks[i].lowestPrice;
-	}
-      }
     }
   }
   Serial.print("\ntoday = ");
