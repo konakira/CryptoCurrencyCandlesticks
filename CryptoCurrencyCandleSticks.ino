@@ -363,14 +363,12 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
   Serial.print(lowest);
   Serial.print(" - ");
   Serial.println(highest);
-#if 0
   if (todayslow < lowest) {
     lowest = todayslow;
   }
   if (highest < todayshigh) {
     highest = todayshigh;
   }
-#endif
 }
 
 void
