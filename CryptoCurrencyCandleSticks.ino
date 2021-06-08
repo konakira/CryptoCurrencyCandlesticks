@@ -147,6 +147,8 @@ public:
   unsigned obtainLastPrice(unsigned long *t);
   void obtainSticks(unsigned n, unsigned long t);
   void obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp);
+  void sendRequest(unsigned long t);
+  unsigned readHeader();
   void calcRelative();
   void ShowChart(int yoff);
   void ShowCurrentPrice(bool forceReloadSticks);
@@ -172,10 +174,65 @@ unsigned numSticks = 1;
 #define MINIMUM_WIDTH 199 // allowed minimum width used in rotation
 
 void
+Currency::sendRequest(unsigned long t)
+{
+  client.print("GET https://" SERVER "/");
+  client.print(pair);
+  client.print("/candlestick/" CANDLESTICK_WIDTH "/");
+#ifdef SHOW_HTTPHEADERS
+  Serial.print("GET https://" SERVER "/");
+  Serial.print(pair);
+  Serial.print("/candlestick/" CANDLESTICK_WIDTH "/");
+#endif
+  {
+    char yyyymmdd[9]; // 9 for "yyyymmdd"
+    sprintf(yyyymmdd, "%04d%02d%02d", year(t), month(t), day(t));
+    client.print(yyyymmdd);
+    client.println(" HTTP/1.0");
+#ifdef SHOW_HTTPHEADERS
+    Serial.print(yyyymmdd);
+    Serial.println(" HTTP/1.0");
+#endif
+  }
+  client.println("Host: " SERVER);
+  client.println("Connection: close");
+  client.println();
+#ifdef SHOW_HTTPHEADERS
+  Serial.println("Host: " SERVER);
+  Serial.println("Connection: close");
+  Serial.println();
+#endif
+}
+
+unsigned
+Currency::readHeader()
+{
+#define ERRTHRESHOLD 30
+  unsigned errcounter = 0;
+  while (client.connected() && errcounter < ERRTHRESHOLD) {
+    String line = client.readStringUntil('\n'); // timeout in 1000msec
+    if (line) {
+#ifdef SHOW_HTTPHEADERS
+      Serial.println(line); // echo response headers
+#endif
+      if (line == "\r") {
+	// Serial.println("headers received");
+	break;
+      }
+    }
+    else {
+      errcounter++;
+    }
+  }
+  return errcounter;
+}
+
+void
 Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
 {
-  // Serial.println("\nobtainSticks called.");
+  unsigned errcounter = 0;
 
+  // Serial.println("\nobtainSticks called.");
   while (0 < n) {
     if (client.connect(SERVER, 443)) {
       Serial.println("\nConnected to http server for sticks.");
@@ -183,50 +240,8 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
 // #define SHOW_HTTPHEADERS
 
       // HTTP request:
-      client.print("GET https://" SERVER "/");
-      client.print(pair);
-      client.print("/candlestick/" CANDLESTICK_WIDTH "/");
-#ifdef SHOW_HTTPHEADERS
-      Serial.print("GET https://" SERVER "/");
-      Serial.print(pair);
-      Serial.print("/candlestick/" CANDLESTICK_WIDTH "/");
-#endif
-      {
-	char yyyymmdd[9]; // 9 for "yyyymmdd"
-	sprintf(yyyymmdd, "%04d%02d%02d", year(t), month(t), day(t));
-	client.print(yyyymmdd);
-	client.println(" HTTP/1.0");
-#ifdef SHOW_HTTPHEADERS
-	Serial.print(yyyymmdd);
-	Serial.println(" HTTP/1.0");
-#endif
-      }
-      client.println("Host: " SERVER);
-      client.println("Connection: close");
-      client.println();
-#ifdef SHOW_HTTPHEADERS
-      Serial.println("Host: " SERVER);
-      Serial.println("Connection: close");
-      Serial.println();
-#endif
-
-#define ERRTHRESHOLD 30
-      unsigned errcounter = 0;
-      while (client.connected() && errcounter < ERRTHRESHOLD) {
-	String line = client.readStringUntil('\n'); // timeout in 1000msec
-	if (line) {
-#ifdef SHOW_HTTPHEADERS
-	  Serial.println(line); // echo response headers
-#endif
-	  if (line == "\r") {
-	    // Serial.println("headers received");
-	    break;
-	  }
-	}
-	else {
-	  errcounter++;
-	}
-      }
+      sendRequest(t);
+      errcounter = readHeader();
 
       if (errcounter < ERRTHRESHOLD) {
 	DynamicJsonDocument doc(50000);
@@ -255,32 +270,35 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
       
 	    Serial.print("Number of sticks = ");
 	    Serial.print(nSticks);
+	    unsigned stickOffset, ohlcvOffset, nloops;
 	    if (n <= nSticks) { // enough sticks obtained
 	      Serial.println(" (enough)");
-	      for (unsigned i = 0 ; i < n ; i++) {
-		// copy the last n data from JSON
-		unsigned ohlcvIndex = i + nSticks - n;
-		candlesticks[i].startPrice = ohlcv[ohlcvIndex][0].as<unsigned>();
-		candlesticks[i].highestPrice = ohlcv[ohlcvIndex][1].as<unsigned>();
-		candlesticks[i].lowestPrice = ohlcv[ohlcvIndex][2].as<unsigned>();
-		candlesticks[i].endPrice = ohlcv[ohlcvIndex][3].as<unsigned>();
-		candlesticks[i].timeStamp =
-		  (unsigned long)(ohlcv[ohlcvIndex][5].as<unsigned long long>() / 1000);
-	      }
-	      n = 0;
+	      stickOffset = 0;
+	      ohlcvOffset = nSticks - n;
+	      nloops = n;
 	    }
 	    else {
 	      Serial.println(" (not enough)");
-	      for (unsigned i = 0 ; i < nSticks ; i++) {
-		// copy the all n data from JSON
-		unsigned stickIndex = i + n - nSticks;
-		candlesticks[stickIndex].startPrice = ohlcv[i][0].as<unsigned>();
-		candlesticks[stickIndex].highestPrice = ohlcv[i][1].as<unsigned>();
-		candlesticks[stickIndex].lowestPrice = ohlcv[i][2].as<unsigned>();
-		candlesticks[stickIndex].endPrice = ohlcv[i][3].as<unsigned>();
-		candlesticks[stickIndex].timeStamp =
-		  (unsigned long)(ohlcv[i][5].as<unsigned long long>() / 1000);
-	      }
+	      stickOffset = n - nSticks;
+	      ohlcvOffset = 0;
+	      nloops = nSticks;
+	    }
+	    for (unsigned i = 0 ; i < nloops ; i++) {
+	      unsigned stickIndex = i + stickOffset;
+	      unsigned ohlcvIndex = i + ohlcvOffset;
+
+	      // copy the last n data from JSON
+	      candlesticks[stickIndex].startPrice = ohlcv[ohlcvIndex][0].as<unsigned>();
+	      candlesticks[stickIndex].highestPrice = ohlcv[ohlcvIndex][1].as<unsigned>();
+	      candlesticks[stickIndex].lowestPrice = ohlcv[ohlcvIndex][2].as<unsigned>();
+	      candlesticks[stickIndex].endPrice = ohlcv[ohlcvIndex][3].as<unsigned>();
+	      candlesticks[stickIndex].timeStamp =
+		(unsigned long)(ohlcv[ohlcvIndex][5].as<unsigned long long>() / 1000);
+	    }
+	    if (n <= nSticks) {
+	      n = 0;
+	    }
+	    else {
 	      n -= nSticks; // to fill remaining slots
 	      t -= 24 * 60 * 60; // for data one day before
 	    }
@@ -345,6 +363,14 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
   Serial.print(lowest);
   Serial.print(" - ");
   Serial.println(highest);
+#if 0
+  if (todayslow < lowest) {
+    lowest = todayslow;
+  }
+  if (highest < todayshigh) {
+    highest = todayshigh;
+  }
+#endif
 }
 
 void
