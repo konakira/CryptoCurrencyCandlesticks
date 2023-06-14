@@ -339,6 +339,11 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
 		  }
 		  if (needMoreSticks) {
 		    // Should be programmed here in the future
+		    t -= 24 * 60 * 60; // for data one day before
+		    // HTTP request:
+		    sendRequest(t);
+		    errcounter = readHeader();
+
 		  }
 		}
 		for (unsigned i = 0 ; i < numSticks ; i++) {
