@@ -154,6 +154,7 @@ public:
   void ShowCurrentPrice(bool forceReloadSticks);
   void SwitchCurrency();
   void ShowCurrencyName(const char *buf, int yoff);
+  void ShowStatus(const char *status, int yoff);
   void ShowUpdating(int yoff);
   void setAlert(class alert a);
 } currencies[2] = {{"ETH", "eth_jpy", 5000}, {"BTC", "btc_jpy", 100000}};
@@ -702,8 +703,11 @@ Currency::ShowCurrencyName(const char *buf, int yoff)
 
 static const char *updating = "Updating...";
 
+// I tried to add this ShowStatus() function which generalized ShowUpdating(),
+// for showing connection failed status, but not used yet.
+
 void
-Currency::ShowUpdating(int yoff)
+Currency::ShowStatus(const char *status, int yoff)
 {
   int textY;
   if (pricePixel < tftHalfHeight) {
@@ -713,8 +717,14 @@ Currency::ShowUpdating(int yoff)
     textY = LCD.fontHeight(2);
   }
   LCD.setTextColor(TFT_WHITE, TFT_BLUE);
-  LCD.drawString(updating, tftWidth - LCD.textWidth(updating, 2) - 1,
+  LCD.drawString(status, tftWidth - LCD.textWidth(status, 2) - 1,
 		 textY + dedicatedPriceAreaHeight, 2);
+}
+
+void
+Currency::ShowUpdating(int yoff)
+{
+  ShowStatus(updating, yoff);
 }
 
 class alert {
