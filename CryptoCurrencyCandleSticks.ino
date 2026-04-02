@@ -559,6 +559,10 @@ ShowBatteryStatus(unsigned position)
 {
   double vbat = M5.Axp.GetBatVoltage();
   int charging = M5.Axp.GetBatCurrent();
+
+  if (vbat > MAX_VOLTAGE) vbat = MAX_VOLTAGE;
+  if (vbat < MIN_VOLTAGE) vbat = MIN_VOLTAGE;
+  
   unsigned batstat = (unsigned)((vbat - MIN_VOLTAGE) * 100 / (MAX_VOLTAGE - MIN_VOLTAGE));
   char buf[6];
   sprintf(buf, "%d%%", batstat);
