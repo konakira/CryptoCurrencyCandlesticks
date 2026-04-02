@@ -9,11 +9,11 @@
 ; https://docs.platformio.org/page/projectconf.html
 
 [env:m5stack-core2]
-platform = espressif32
+platform = espressif32@^6.9.0
 board = m5stack-core2
 framework = arduino
 lib_deps = 
-	m5stack/M5Core2@^0.0.2
+	m5stack/M5Core2@^0.1.9
 	bblanchon/ArduinoJson@^6.17.3
 	jfturcot/SimpleTimer@0.0.0-alpha+sha.b30890b8f7
 	paulstoffregen/Time@^1.6
