@@ -15,7 +15,6 @@ The following are required to compile and run this program:
 - M5Stack, M5StickC (Plus) or TTGO-T-Display
 - M5Stack or TTGO-T-Display library for Arduino. For example, TTGO-T-Display library can be downloaded from: https://github.com/Xinyuan-LilyGO/TTGO-T-Display
 - ArduinoJson library which can be downloaded from: https://arduinojson.org/
-- Root certification for bitbank.cc which is already included within this source code.
 - Arduino IDE to compile and transfer the compiled executable into ESP32 device.
 - WiFi access information which should be placed in auth.h (not included in this repository) which includes the following information:
 
