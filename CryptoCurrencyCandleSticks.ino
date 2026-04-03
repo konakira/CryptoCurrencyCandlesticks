@@ -7,17 +7,74 @@
 #ifdef ARDUINO_M5STACK_Core2
 #include <M5Core2.h>
 #else // !ARDUINO_M5STACK_Core2
+#ifdef ESPC6
+#include <LovyanGFX.hpp>
+
+class LGFX : public lgfx::LGFX_Device {
+  lgfx::Panel_ST7789 _panel_instance;
+  lgfx::Bus_SPI      _bus_instance;
+  lgfx::Light_PWM    _light_instance;
+
+public:
+  LGFX(void) {
+    auto bus_cfg = _bus_instance.config();
+    bus_cfg.spi_host = SPI2_HOST;
+    bus_cfg.spi_mode = 0;             
+    bus_cfg.freq_write = 40000000;    
+    bus_cfg.spi_3wire  = false;       
+    bus_cfg.use_lock   = true;
+    bus_cfg.dma_channel = SPI_DMA_CH_AUTO;
+    
+    // 💡 公式データシート通りの【真のピン配置】
+    bus_cfg.pin_sclk = 7;  
+    bus_cfg.pin_mosi = 6;  
+    bus_cfg.pin_miso = -1; 
+    bus_cfg.pin_dc   = 15;
+    
+    _bus_instance.config(bus_cfg);
+    _panel_instance.setBus(&_bus_instance);
+
+    auto panel_cfg = _panel_instance.config();
+    panel_cfg.pin_cs   = 14;
+    panel_cfg.pin_rst  = 21;
+    panel_cfg.panel_width  = 172;
+    panel_cfg.panel_height = 320;
+    panel_cfg.offset_x     = 34;
+    panel_cfg.offset_y     = 0;
+    panel_cfg.invert       = true;
+    panel_cfg.rgb_order    = false;
+    panel_cfg.readable     = false;
+    _panel_instance.config(panel_cfg);
+
+    auto light_cfg = _light_instance.config();
+    light_cfg.pin_bl = 22;
+    light_cfg.pwm_channel = -1; 
+    light_cfg.invert = false;
+    _light_instance.config(light_cfg);
+    _panel_instance.setLight(&_light_instance);
+
+    setPanel(&_panel_instance);
+  }
+};
+LGFX tft;
+#else
 #include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
-#ifndef TTGO // custom ESP32
+TFT_eSPI tft = TFT_eSPI();  // Invoke library, pins defined in User_Setup.h
+#endif
+#if !defined(TTGO) && !defined(ESPC6) // custom ESP32
 const int cds = 39; // VP=36, VN=39
 static bool backlight_is_on = true;
 #define CUSTOM_ESP32_TFT // for later compile switch
 #define ESP32_DEFAULT_ROTATION 0
 #define BUTTON1 0 // GPIO0
-#else // TTGO
+#else // TTGO || ESPC6
 #define ESP32_DEFAULT_ROTATION 1
+#ifdef ESPC6
+#define BUTTON1 9 // 💡 ESP32-C6のBOOTボタンは「9番」！
+#else
 #define BUTTON1 35 // GPIO35, not sure this works or not
 #define BUTTON2 0 // GPIO0
+#endif
 #ifdef TFT_BL
 #undef TFT_BL
 #endif
@@ -25,7 +82,7 @@ static bool backlight_is_on = true;
 #endif // !ARDUINO_M5STACK_Core2
 #endif // !ARDUINO_M5Stick_C
 #endif // !ARDUINO_M5Stick_C_Plus
-// #include <WiFi.h>
+#include <WiFi.h>
 #include <WiFiClientSecure.h>
 #define ARDUINOJSON_USE_LONG_LONG 1
 #include <ArduinoJson.h>
@@ -37,8 +94,6 @@ static bool backlight_is_on = true;
 #include "auth.h"
 
 #define MAX_HORIZONTAL_RESOLUTION 321
-
-TFT_eSPI tft = TFT_eSPI();  // Invoke library, pins defined in User_Setup.h
 
 #if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
 #define LCD M5.Lcd
@@ -511,16 +566,29 @@ static bool currencyRotationTriggered = false;
 
 #if defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus)
 #define PRICEFONT 4
+#define FONTN2 2
+#define FONTN4 4
 #define OTHER_CURRENCY_BASE_VALUE_FONT 2
 #define PRICE_FONT_HEIGHT_ADJUSTMENT 2
 #define CONNECTINGFONT 4
 #define BASE_DIFF 0 // base difference between relative price font and its unit font
 #else
+#ifdef ESPC6
+#define PRICE_FONT &fonts::FreeSansBold24pt7b 
+#define PRICEFONT &fonts::FreeSansBold24pt7b
+#define FONTN2 &fonts::Font2
+#define FONTN4 &fonts::Font4
+#define OTHER_CURRENCY_BASE_VALUE_FONT &fonts::Font4
+#define CONNECTINGFONT &fonts::Font4
+#else // !ESPC6
 #define PRICE_FONT FF44 // 20, 24, (36,) 44 are candidates for a price font
 #define PRICEFONT GFXFF
+#define FONTN2 2
+#define FONTN4 4
 #define OTHER_CURRENCY_BASE_VALUE_FONT 4
-#define PRICE_FONT_HEIGHT_ADJUSTMENT 10
 #define CONNECTINGFONT 4
+#endif
+#define PRICE_FONT_HEIGHT_ADJUSTMENT 10
 #define BASE_DIFF 4 // base difference between relative price font and its unit font
 #endif
   
@@ -537,7 +605,11 @@ static bool currencyRotationTriggered = false;
 #define ALERT_BLACK_DURATION 200 // msec
 
 void
+#ifdef ESPC6
+DrawStringWithShade(const char *buf, int x, int y, const lgfx::v1::IFont* font, int color, int shade)
+#else
 DrawStringWithShade(const char *buf, int x, int y, unsigned font, int color, int shade)
+#endif
 {
   LCD.setTextColor(TFT_BLACK);
   LCD.drawString(buf, x - shade, y - shade, font);
@@ -566,7 +638,7 @@ ShowBatteryStatus(unsigned position)
   unsigned batstat = (unsigned)((vbat - MIN_VOLTAGE) * 100 / (MAX_VOLTAGE - MIN_VOLTAGE));
   char buf[6];
   sprintf(buf, "%d%%", batstat);
-  unsigned fHeight = LCD.fontHeight(2);
+  unsigned fHeight = LCD.fontHeight(FONTN2);
   unsigned batxoff = 1;
   unsigned batyoff = ((fHeight - 2) * TOP_OFFSET / 10) + 1;
   unsigned batheight = (fHeight - 2) * HEIGHT_RANGE / 10;
@@ -603,7 +675,7 @@ ShowBatteryStatus(unsigned position)
 	       (right - left - 4) * batstat / 100, bottom - top - 3,
 	       0 < charging ? TFT_GREEN : TFT_WHITE);
 	       
-  DrawStringWithShade(buf, right + 5, top - batyoff, 2, TFT_WHITE, 1);
+  DrawStringWithShade(buf, right + 5, top - batyoff, FONTN2, TFT_WHITE, 1);
 }
 #else
 void
@@ -630,7 +702,7 @@ ShowLastPrice(char *buf, int lastPricePixel, unsigned priceColor, int yoff)
     }
     textY += yoff;
     if (yoff == 0) {
-      ShowBatteryStatus(LCD.fontHeight(2) < textY ? BAT_POS_TOPLEFT : BAT_POS_BOTTOMLEFT);
+      ShowBatteryStatus(LCD.fontHeight(FONTN2) < textY ? BAT_POS_TOPLEFT : BAT_POS_BOTTOMLEFT);
     }
   }
   DrawStringWithShade(buf, 0, textY, PRICEFONT, priceColor, BORDER_WIDTH);
@@ -662,7 +734,7 @@ ShowRelativePrice(char *buf, const char *name, int lastPricePixel, unsigned pric
   DrawStringWithShade(buf, PADX, textY + yoff, OTHER_CURRENCY_BASE_VALUE_FONT, priceColor, BORDER_WIDTH);
   DrawStringWithShade(name,
 		      PADX + LCD.textWidth(buf, OTHER_CURRENCY_BASE_VALUE_FONT),
-		      textY + yoff + LCD.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT) - LCD.fontHeight(2) - BASE_DIFF, 2, priceColor, BORDER_WIDTH);
+		      textY + yoff + LCD.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT) - LCD.fontHeight(FONTN2) - BASE_DIFF, FONTN2, priceColor, BORDER_WIDTH);
 }
 
 void
@@ -670,13 +742,13 @@ Currency::ShowCurrencyName(const char *buf, int yoff)
 {
   int textY;
   if (pricePixel < tftHalfHeight) {
-    textY = tftHeight - LCD.fontHeight(2) * 2;
+    textY = tftHeight - LCD.fontHeight(FONTN2) * 2;
   }
   else {
-    textY = LCD.fontHeight(2);
+    textY = LCD.fontHeight(FONTN2);
   }
   LCD.setTextColor(TFT_WHITE);
-  LCD.drawString(buf, tftWidth - LCD.textWidth(buf, 2) - 1, textY + yoff, 2);
+  LCD.drawString(buf, tftWidth - LCD.textWidth(buf, FONTN2) - 1, textY + yoff, FONTN2);
 }
 
 static const char *updating = "Updating...";
@@ -689,14 +761,14 @@ Currency::ShowStatus(const char *status, int yoff)
 {
   int textY;
   if (pricePixel < tftHalfHeight) {
-    textY = tftHeight - LCD.fontHeight(2) * 2 + yoff;
+    textY = tftHeight - LCD.fontHeight(FONTN2) * 2 + yoff;
   }
   else {
-    textY = LCD.fontHeight(2);
+    textY = LCD.fontHeight(FONTN2);
   }
   LCD.setTextColor(TFT_WHITE, TFT_BLUE);
-  LCD.drawString(status, tftWidth - LCD.textWidth(status, 2) - 1,
-		 textY + dedicatedPriceAreaHeight, 2);
+  LCD.drawString(status, tftWidth - LCD.textWidth(status, FONTN2) - 1,
+		 textY + dedicatedPriceAreaHeight, FONTN2);
 }
 
 void
@@ -739,8 +811,8 @@ private:
   void showAlert() {
     unsigned yoff = 1 < numScreens ? tftHeight : 0 + dedicatedPriceAreaHeight;
 
-    LCD.drawString(alertmesg1, PADX, PADY + yoff, 4);
-    LCD.drawString(alertmesg2, PADX, LCD.fontHeight(4) + PADY + yoff, 4);
+    LCD.drawString(alertmesg1, PADX, PADY + yoff, FONTN4);
+    LCD.drawString(alertmesg2, PADX, LCD.fontHeight(FONTN4) + PADY + yoff, FONTN4);
     LCD.drawString(buf,
 		   tftWidth / 2 - LCD.textWidth(buf, PRICEFONT) / 2,
 		   tftHeight - PriceFontHeight + yoff, PRICEFONT);
@@ -812,16 +884,16 @@ Currency::ShowChart(int yoff)
       if (curHour % 3 == 0) {
 	char bufHour[4];
 	snprintf(bufHour, sizeof(bufHour) - 1, "%d", curHour);
-	int offset = LCD.textWidth(bufHour, 2) / 2;
-	if (i * 3 < tftWidth - LCD.textWidth(buf, 2) - offset - PADX) {
+	int offset = LCD.textWidth(bufHour, FONTN2) / 2;
+	if (i * 3 < tftWidth - LCD.textWidth(buf, FONTN2) - offset - PADX) {
 	  // if we have enough space around vertical line, draw the time
 	  unsigned textY = 0;
 
 	  if (pricePixel < tftHalfHeight) {
-	    textY = tftHeight - LCD.fontHeight(2);
+	    textY = tftHeight - LCD.fontHeight(FONTN2);
 	  }
 	  LCD.setTextColor(TFT_CYAN);
-	  LCD.drawNumber(curHour, i * 3 - offset, textY + yoff, 2);
+	  LCD.drawNumber(curHour, i * 3 - offset, textY + yoff, FONTN2);
 	}
       }
     }
@@ -863,12 +935,12 @@ Currency::ShowChart(int yoff)
 
   // draw highest and lowest price in the chart
   itocsa(buf, PRICEBUFSIZE, highest);
-  DrawStringWithShade(buf, tftWidth - LCD.textWidth(buf, 2) - 1, yoff, 2, TFT_WHITE, 1);
+  DrawStringWithShade(buf, tftWidth - LCD.textWidth(buf, FONTN2) - 1, yoff, FONTN2, TFT_WHITE, 1);
 
   itocsa(buf, PRICEBUFSIZE, lowest);
 
-  DrawStringWithShade(buf, tftWidth - LCD.textWidth(buf, 2) - 1,
-		      tftHeight + yoff - LCD.fontHeight(2), 2, TFT_WHITE, 1);
+  DrawStringWithShade(buf, tftWidth - LCD.textWidth(buf, FONTN2) - 1,
+		      tftHeight + yoff - LCD.fontHeight(FONTN2), FONTN2, TFT_WHITE, 1);
 
   // show currency name
   ShowCurrencyName(name, yoff);
@@ -1178,7 +1250,7 @@ void SecProc()
     }
     if (currencyRotationTriggered) { // currency and screen rotation change triggered
       currencyRotationTriggered = false;
-#ifdef TTGO
+#if defined(TTGO) || defined(ESPC6)
       static const unsigned cur_rot[4] = {1, 2, 3, 0};
       unsigned r = (LCD.getRotation() & 2); // 1 to 0, 3 to 1. no choice for 2 and 4
       unsigned cr = r + cIndex;
@@ -1290,7 +1362,11 @@ void setup()
   LCD.setTextPadding(PADX); // seems no effect by this line.
   LCD.setTextSize(1);
 #if !(defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus))
+#ifdef ESPC6
+  LCD.setFont(PRICE_FONT); // Select a font for last price display
+#else
   LCD.setFreeFont(PRICE_FONT); // Select a font for last price display
+#endif
 #endif
   PriceFontHeight = LCD.fontHeight(PRICEFONT) - PRICE_FONT_HEIGHT_ADJUSTMENT;
 
@@ -1320,7 +1396,7 @@ void setup()
   timer.setInterval(1000, SecProc);
   timer.setInterval(60000, _ShowCurrentPrice);
 }
-
+  
 void loop()
 {
 #if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
