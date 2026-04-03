@@ -318,10 +318,10 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
 	      unsigned ohlcvIndex = i + ohlcvOffset;
 
 	      // copy the last n data from JSON
-	      candlesticks[stickIndex].startPrice = ohlcv[ohlcvIndex][0].as<unsigned>();
-	      candlesticks[stickIndex].highestPrice = ohlcv[ohlcvIndex][1].as<unsigned>();
-	      candlesticks[stickIndex].lowestPrice = ohlcv[ohlcvIndex][2].as<unsigned>();
-	      candlesticks[stickIndex].endPrice = ohlcv[ohlcvIndex][3].as<unsigned>();
+	      candlesticks[stickIndex].startPrice   = (unsigned)ohlcv[ohlcvIndex][0].as<unsigned long long>();
+	      candlesticks[stickIndex].highestPrice = (unsigned)ohlcv[ohlcvIndex][1].as<unsigned long long>();
+	      candlesticks[stickIndex].lowestPrice  = (unsigned)ohlcv[ohlcvIndex][2].as<unsigned long long>();
+	      candlesticks[stickIndex].endPrice     = (unsigned)ohlcv[ohlcvIndex][3].as<unsigned long long>();
 	      candlesticks[stickIndex].timeStamp =
 		(unsigned long)(ohlcv[ohlcvIndex][5].as<unsigned long long>() / 1000);
 	    }
@@ -351,8 +351,8 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
                     unsigned h, l;
                     
                     // get necessary data from JSON
-                    h = ohlcv[i][1].as<unsigned>();
-                    l = ohlcv[i][2].as<unsigned>();
+		    h = (unsigned)ohlcv[i][1].as<unsigned long long>();
+		    l = (unsigned)ohlcv[i][2].as<unsigned long long>();
                     ts = (unsigned long)(ohlcv[i][5].as<unsigned long long>() / 1000);
                     if (day(ts + TIMEZONE) == today) {
                       if (todayshigh == 0) {
