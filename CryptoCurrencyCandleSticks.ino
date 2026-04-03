@@ -171,7 +171,7 @@ public:
     name = na;
     pair = pa;
     priceline = pl;
-  }
+  }    
 
   unsigned obtainLastPrice(unsigned long *t);
   void obtainSticks(unsigned n, unsigned long t);
@@ -348,50 +348,50 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
 		  }
 		  
 		  for (unsigned i = 0 ; i < nSticks - n ; i++) {
-		    unsigned h, l;
-		    
-		    // get necessary data from JSON
-		    h = ohlcv[i][1].as<unsigned>();
-		    l = ohlcv[i][2].as<unsigned>();
-		    ts = (unsigned long)(ohlcv[i][5].as<unsigned long long>() / 1000);
-		    if (day(ts + TIMEZONE) == today) {
-		      if (todayshigh == 0) {
-			todayshigh = h;
-			todayslow = l;
-		      }
+                    unsigned h, l;
+                    
+                    // get necessary data from JSON
+                    h = ohlcv[i][1].as<unsigned>();
+                    l = ohlcv[i][2].as<unsigned>();
+                    ts = (unsigned long)(ohlcv[i][5].as<unsigned long long>() / 1000);
+                    if (day(ts + TIMEZONE) == today) {
+                      if (todayshigh == 0) {
+                        todayshigh = h;
+                        todayslow = l;
+                      }
 		      else if (todayshigh < h) {
 			todayshigh = h;
 		      }
 		      else if (l < todayslow) {
 			todayslow = l;
-		      }
-		    }
-		  }
-		  if (needMoreSticks) {
-		    // Should be programmed here in the future
-		    t -= 24 * 60 * 60; // for data one day before
-		    // HTTP request:
-		    sendRequest(t);
-		    errcounter = readHeader();
+                      }
+                    }
+                  }
+                  if (needMoreSticks) {
+                    // Should be programmed here in the future
+                    t -= 24 * 60 * 60; // for data one day before
+                    // HTTP request:
+                    sendRequest(t);
+                    errcounter = readHeader();
 
-		  }
-		}
-		for (unsigned i = 0 ; i < numSticks ; i++) {
-		  if (day(candlesticks[i].timeStamp + TIMEZONE) == today) {
-		    if (todayshigh == 0) {
-		      todayshigh = candlesticks[i].highestPrice;
-		      todayslow = candlesticks[i].lowestPrice;
-		    }
+                  }
+                }
+                for (unsigned i = 0 ; i < numSticks ; i++) {
+                  if (day(candlesticks[i].timeStamp + TIMEZONE) == today) {
+                    if (todayshigh == 0) {
+                      todayshigh = candlesticks[i].highestPrice;
+                      todayslow = candlesticks[i].lowestPrice;
+                    }
 		    else if (todayshigh < candlesticks[i].highestPrice) {
 		      todayshigh = candlesticks[i].highestPrice;
 		    }
 		    else if (candlesticks[i].lowestPrice < todayslow) {
 		      todayslow = candlesticks[i].lowestPrice;
 		    }
-		  }
-		}
-	      }
-	      
+                  }
+                }
+              }
+
 	    }
 	    else {
 	      n -= nSticks; // to fill remaining slots
@@ -591,11 +591,16 @@ static bool currencyRotationTriggered = false;
 #define PRICE_FONT_HEIGHT_ADJUSTMENT 10
 #define BASE_DIFF 4 // base difference between relative price font and its unit font
 #endif
-  
+
+
+#ifdef ESPC6
+#define TFT_DOWNRED 0xFF0000U  // 真っ赤！
+#define TFT_UPGREEN 0x00FF00U  // 真っ緑！
+#else
 #define TFT_DOWNRED 0xC000 /* 127,   0,   0 */
 #define TFT_UPGREEN 0x0600 /*   0, 128,   0 */
-// #define TFT_RED         0xF800      /* 255,   0,   0 */
-// #define TFT_GREEN       0x07E0      /*   0, 255,   0 */
+#endif
+#define TFT_DARKBLUE        0x000F      /*   0,   0, 127 */
 
 #define ONEMINUTE_THRESHOLD 1 // per cent
 #define FIVEMINUTES_THRESHOLD 1 // per cent
@@ -842,8 +847,6 @@ Currency::ShowChart(int yoff)
 
   // show the chart
 
-#define TFT_DARKBLUE        0x000F      /*   0,   0, 127 */
-
   yoff += dedicatedPriceAreaHeight;
 
   if (highest < price) {
@@ -927,7 +930,7 @@ Currency::ShowChart(int yoff)
     }
 
     LCD.drawFastVLine(i * 3 + 1, highestPixel + yoff, lowestPixel - highestPixel, TFT_LIGHTGREY);
-    LCD.fillRect(i * 3, highestPixel + yoff, 3, pixelHeight, stickColor);
+    LCD.fillRect(i * 3, lowPixel + yoff, 3, pixelHeight, stickColor);
   }
 
   // draw price horizontal line
