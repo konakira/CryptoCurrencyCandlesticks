@@ -934,7 +934,7 @@ Currency::ShowChart(int yoff)
   }
 
   // draw price horizontal line
-  LCD.drawFastHLine(0, pricePixel + yoff, tftWidth, priceColor);
+  LCD.drawFastHLine(0, pricePixel + yoff, tftWidth, priceColor == TFT_GREEN ? TFT_UPGREEN : TFT_DOWNRED);
 
   // draw highest and lowest price in the chart
   itocsa(buf, PRICEBUFSIZE, highest);
