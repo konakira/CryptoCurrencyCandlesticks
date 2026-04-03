@@ -25,4 +25,4 @@ The following are required to compile and run this program:
 
 ## Future updates
 
-I do not have any plan to support any other currency nor fiat currencyn than Ethereum and Bitcoin. In addition, I do not have any plan to support any other API provided by other Cryptocurrency exchanges.
+I do not have any plan to support any other currency nor fiat currency than Ethereum and Bitcoin. In addition, I do not have any plan to support any other API provided by other Cryptocurrency exchanges.
