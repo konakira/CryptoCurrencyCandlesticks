@@ -7,6 +7,9 @@
 #ifdef ARDUINO_M5STACK_Core2
 #include <M5Core2.h>
 #else // !ARDUINO_M5STACK_Core2
+#ifdef ARDUINO_M5STICK_S3
+#include <M5Unified.h>
+#else
 #ifdef ESPC6
 #include <LovyanGFX.hpp>
 
@@ -79,6 +82,7 @@ static bool backlight_is_on = true;
 #undef TFT_BL
 #endif
 #endif // TTGO
+#endif // !ARDUINO_M5STICK_S3
 #endif // !ARDUINO_M5STACK_Core2
 #endif // !ARDUINO_M5Stick_C
 #endif // !ARDUINO_M5Stick_C_Plus
@@ -97,6 +101,8 @@ static bool backlight_is_on = true;
 
 #if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
 #define LCD M5.Lcd
+#elif defined(ARDUINO_M5STICK_S3)
+#define LCD M5.Display
 #else
 #undef LCD
 #define LCD tft
@@ -573,22 +579,22 @@ static bool currencyRotationTriggered = false;
 #define PRICE_FONT_HEIGHT_ADJUSTMENT 2
 #define CONNECTINGFONT 4
 #define BASE_DIFF 0 // base difference between relative price font and its unit font
-#else
-#ifdef ESPC6
+#elif defined(ARDUINO_M5STICK_S3) || defined(ESPC6)
 #define PRICE_FONT &fonts::FreeSansBold24pt7b 
 #define PRICEFONT &fonts::FreeSansBold24pt7b
 #define FONTN2 &fonts::Font2
 #define FONTN4 &fonts::Font4
 #define OTHER_CURRENCY_BASE_VALUE_FONT &fonts::Font4
 #define CONNECTINGFONT &fonts::Font4
-#else // !ESPC6
+#define PRICE_FONT_HEIGHT_ADJUSTMENT 10
+#define BASE_DIFF 4
+#else
 #define PRICE_FONT FF44 // 20, 24, (36,) 44 are candidates for a price font
 #define PRICEFONT GFXFF
 #define FONTN2 2
 #define FONTN4 4
 #define OTHER_CURRENCY_BASE_VALUE_FONT 4
 #define CONNECTINGFONT 4
-#endif
 #define PRICE_FONT_HEIGHT_ADJUSTMENT 10
 #define BASE_DIFF 4 // base difference between relative price font and its unit font
 #endif
@@ -611,7 +617,7 @@ static bool currencyRotationTriggered = false;
 #define ALERT_BLACK_DURATION 200 // msec
 
 void
-#ifdef ESPC6
+#if defined(ESPC6) || defined(ARDUINO_M5STICK_S3)
 DrawStringWithShade(const char *buf, int x, int y, const lgfx::v1::IFont* font, int color, int shade)
 #else
 DrawStringWithShade(const char *buf, int x, int y, unsigned font, int color, int shade)
@@ -624,10 +630,14 @@ DrawStringWithShade(const char *buf, int x, int y, unsigned font, int color, int
   LCD.drawString(buf, x, y, font);
 }
 
+#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2) || defined(ARDUINO_M5STICK_S3)
+#define ARDUINO_M5
+#endif
+
 #define BAT_POS_TOPRIGHT 1
 #define BAT_POS_TOPLEFT 2
 #define BAT_POS_BOTTOMLEFT 3
-#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
+#ifdef ARDUINO_M5
 #define MIN_VOLTAGE 3.0
 #define MAX_VOLTAGE 4.2
 #define TOP_OFFSET 1 // per 10
@@ -635,13 +645,21 @@ DrawStringWithShade(const char *buf, int x, int y, unsigned font, int color, int
 void
 ShowBatteryStatus(unsigned position)
 {
+  unsigned batstat;
+  int charging;
+#ifndef ARDUINO_M5STICK_S3
   double vbat = M5.Axp.GetBatVoltage();
-  int charging = M5.Axp.GetBatCurrent();
+  charging = M5.Axp.GetBatCurrent();
 
   if (vbat > MAX_VOLTAGE) vbat = MAX_VOLTAGE;
   if (vbat < MIN_VOLTAGE) vbat = MIN_VOLTAGE;
   
-  unsigned batstat = (unsigned)((vbat - MIN_VOLTAGE) * 100 / (MAX_VOLTAGE - MIN_VOLTAGE));
+  batstat = (unsigned)((vbat - MIN_VOLTAGE) * 100 / (MAX_VOLTAGE - MIN_VOLTAGE));
+#else // if defined(ARDUINO_M5STICK_S3)
+  batstat = M5.Power.getBatteryLevel(); // Just calling a function to obtain battery level.
+  charging = M5.Power.isCharging() ? 1 : 0;
+#endif
+
   char buf[6];
   sprintf(buf, "%d%%", batstat);
   unsigned fHeight = LCD.fontHeight(FONTN2);
@@ -665,7 +683,7 @@ ShowBatteryStatus(unsigned position)
   case BAT_POS_TOPRIGHT:
   default:
     top = batyoff;
-    left = LCD.width() - batwidth - LCD.textWidth("100%", 2);
+    left = LCD.width() - batwidth - LCD.textWidth("100%", FONTN2);
     break;
   }
   bottom = top + batheight;
@@ -1331,7 +1349,7 @@ void buttonEventProc()
 
 void setup()
 {
-#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
+#ifdef ARDUINO_M5
   // initialize the M5StickC object
   M5.begin();
   //  M5.Axp.begin();
@@ -1354,16 +1372,12 @@ void setup()
   backlight_is_on = true;
 #endif
 
-#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
-#ifdef ARDUINO_M5STACK_Core2
-  M5.Lcd.setRotation(1); // set it to 1 or 3 for landscape resolution
-#else
-  M5.Lcd.setRotation(1); // set it to 1 or 3 for landscape resolution
-#endif
-  tftHeight = M5.Lcd.height() / numScreens;
-  tftWidth = M5.Lcd.width();
-  M5.Lcd.fillScreen(BLACK);
-#else
+#ifdef ARDUINO_M5
+  LCD.setRotation(1); // set it to 1 or 3 for landscape resolution
+  tftHeight = LCD.height() / numScreens;
+  tftWidth = LCD.width();
+  LCD.fillScreen(TFT_BLACK);
+#else  
   tft.setRotation(ESP32_DEFAULT_ROTATION); // set it to 1 or 3 for landscape resolution
   tftHeight = tft.height() / numScreens;
   tftWidth = tft.width();
@@ -1378,7 +1392,7 @@ void setup()
   LCD.setTextPadding(PADX); // seems no effect by this line.
   LCD.setTextSize(1);
 #if !(defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus))
-#ifdef ESPC6
+#if defined(ESPC6) || defined(ARDUINO_M5STICK_S3)
   LCD.setFont(PRICE_FONT); // Select a font for last price display
 #else
   LCD.setFreeFont(PRICE_FONT); // Select a font for last price display
@@ -1415,7 +1429,7 @@ void setup()
   
 void loop()
 {
-#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
+#ifdef ARDUINO_M5
   M5.update();
   if (M5.BtnA.wasPressed()) {
     if (0 < alertDuration) {
