@@ -174,8 +174,8 @@ public:
   }    
 
   unsigned obtainLastPrice(unsigned long *t);
-  void obtainSticks(unsigned n, unsigned long t);
-  void obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp);
+  bool obtainSticks(unsigned n, unsigned long t);
+  bool obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp);
   void sendRequest(unsigned long t);
   unsigned readHeader();
   void calcRelative();
@@ -257,7 +257,7 @@ Currency::readHeader()
   return errcounter;
 }
 
-void
+bool
 Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
 {
   unsigned errcounter = 0;
@@ -277,7 +277,7 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
 	DynamicJsonDocument doc(50000);
 	DeserializationError error = deserializeJson(doc, client);
 	client.stop();
-
+	
 	if (!error) {
 	  int success = doc["success"]; // 1
 
@@ -318,10 +318,10 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
 	      unsigned ohlcvIndex = i + ohlcvOffset;
 
 	      // copy the last n data from JSON
-	      candlesticks[stickIndex].startPrice   = (unsigned)ohlcv[ohlcvIndex][0].as<unsigned long long>();
-	      candlesticks[stickIndex].highestPrice = (unsigned)ohlcv[ohlcvIndex][1].as<unsigned long long>();
-	      candlesticks[stickIndex].lowestPrice  = (unsigned)ohlcv[ohlcvIndex][2].as<unsigned long long>();
-	      candlesticks[stickIndex].endPrice     = (unsigned)ohlcv[ohlcvIndex][3].as<unsigned long long>();
+	      candlesticks[stickIndex].startPrice = ohlcv[ohlcvIndex][0].as<unsigned>();
+	      candlesticks[stickIndex].highestPrice = ohlcv[ohlcvIndex][1].as<unsigned>();
+	      candlesticks[stickIndex].lowestPrice = ohlcv[ohlcvIndex][2].as<unsigned>();
+	      candlesticks[stickIndex].endPrice = ohlcv[ohlcvIndex][3].as<unsigned>();
 	      candlesticks[stickIndex].timeStamp =
 		(unsigned long)(ohlcv[ohlcvIndex][5].as<unsigned long long>() / 1000);
 	    }
@@ -351,20 +351,20 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
                     unsigned h, l;
                     
                     // get necessary data from JSON
-		    h = (unsigned)ohlcv[i][1].as<unsigned long long>();
-		    l = (unsigned)ohlcv[i][2].as<unsigned long long>();
-                    ts = (unsigned long)(ohlcv[i][5].as<unsigned long long>() / 1000);
-                    if (day(ts + TIMEZONE) == today) {
-                      if (todayshigh == 0) {
-                        todayshigh = h;
-                        todayslow = l;
-                      }
+		    h = ohlcv[i][1].as<unsigned>();
+		    l = ohlcv[i][2].as<unsigned>();
+		    ts = (unsigned long)(ohlcv[i][5].as<unsigned long long>() / 1000);
+		    if (day(ts + TIMEZONE) == today) {
+		      if (todayshigh == 0) {
+			todayshigh = h;
+			todayslow = l;
+		      }
 		      else if (todayshigh < h) {
 			todayshigh = h;
 		      }
 		      else if (l < todayslow) {
 			todayslow = l;
-                      }
+		      }
                     }
                   }
                   if (needMoreSticks) {
@@ -400,23 +400,23 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
 	  }
 	  else { // not success
 	    Serial.println(F("deserializeJson() succeded w/ false 'success' flag."));
-	    return;
+	    return false;
 	  }
 	}
 	else {
 	  Serial.print(F("deserializeJson() failed: "));
 	  Serial.println(error.f_str());
-	  return;
+	  return false;
 	}
       }
       else {
 	Serial.println(F("http read timedout."));
-	return;
+	return false;
       }
     }
     else {
       Serial.println("\nConnection failed!");
-      return;
+      return false;
     }
   }
   // obtaining chart's high and low
@@ -444,12 +444,13 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
   if (highest < todayshigh) {
     highest = todayshigh;
   }
+  return true;
 }
 
-void
+bool
 Currency::obtainSticks(unsigned n, unsigned long t)
 {
-  obtainSticks(n, t, 0);
+  return obtainSticks(n, t, 0);
 }
 
 
@@ -538,7 +539,7 @@ Currency::obtainLastPrice(unsigned long *t)
 	prevTimeStamp = timestamp;
 	SerialPrintTimestamp(timestamp, TIMEZONE);
 	prevPrice = price;
-	price = (unsigned)doc["data"]["last"].as<long>();
+	price = doc["data"]["last"].as<unsigned>();
       }
     }
     client.stop();
@@ -1128,9 +1129,19 @@ Currency::ShowCurrentPrice(bool forceReloadSticks)
     // I forgot what '0 < price' means
     // Meaning of '(minute(prevTimeStamp) % CANDLESTICK_WIDTH_MIN) < (minute(prevTime) % CANDLESTICK_WIDTH_MIN)'
     // is that time exceeds specified CANDLESTICK_WIDTH_MIN, so that, it is necessary to obtain candlesticks.
-    obtainSticks(numSticks, t);
+
+#define NRETRY 20
+    
+    for (int i = 0 ; i < NRETRY ; i++) {
+      if (obtainSticks(numSticks, t)) break;
+      delay(500);
+    }
+
     // get data for another currency
-    currencies[another].obtainSticks(numSticks, t, candlesticks[numSticks - 1].timeStamp);
+    for (int i = 0 ; i < NRETRY ; i++) {
+      if (currencies[another].obtainSticks(numSticks, t, candlesticks[numSticks - 1].timeStamp)) break;
+      delay(500);
+    }
     calcRelative();
     // currencies[another].calcRelative();
   }
@@ -1328,8 +1339,10 @@ void setup()
 #else
   // initialize TFT screen
   tft.init(); // equivalent to tft.begin();
-  Serial.begin(115200);
 #endif
+
+  Serial.begin(115200);
+  delay(500);  // needed by C6
 
   Serial.println("");
   Serial.println("CryptoCurrency candlestick chart display terminal started.");
