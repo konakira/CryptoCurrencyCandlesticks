@@ -22,6 +22,8 @@ lib_deps =
 build_flags = 
 	-D ESPC6
 	-D SPOTPEAR_C6
-
+	-D ARDUINO_USB_MODE=1
+	-D ARDUINO_USB_CDC_ON_BOOT=1
+  
 ; Custom Serial Monitor speed (baud rate)
 monitor_speed = 115200
