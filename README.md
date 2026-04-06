@@ -2,27 +2,22 @@
 
 ![Running Image](images/M5family.jpeg "Running Image")
 
-This is a program which turns an ESP32 device with color LCD display (M5Stack family and TTGO) into a candlestick display terminal for Ethereum. At this point, it just supports the pair of {Ethereum | Bitcoin} and Japanese Yen.
+A real-time cryptocurrency candlestick chart display terminal for ESP32 and M5Stack series devices. It fetches data from the bitbank.cc API to render live market movements directly on your desktop.
 
-This program uses Bitbank's public API to obtain candlesticks. The specifications of the API are shown at: https://github.com/bitbankinc/bitbank-api-docs
-This program uses public candlestick API written here: https://github.com/bitbankinc/bitbank-api-docs/blob/master/public-api.md
-You do not have to obtain API key to access the API.
+The specifications of the API can be found here: https://github.com/bitbankinc/bitbank-api-docs
+This program uses the public candlestick API documented here: https://github.com/bitbankinc/bitbank-api-docs/blob/master/public-api.md
+**No API key is required** to access this API.
 
-## Requirements
+## Key Features
 
-The following are required to compile and run this program:
+* **Dynamic Dual Display:** Automatically adapts to your device's screen resolution. Enjoy a split-screen view showing both BTC and ETH simultaneously on larger screens (like M5Stack Core2), or toggle between them seamlessly on compact devices.
+* **Smart Visual Alerts:** Never miss a critical market movement. The entire (or a large part of) the screen actively flashes (Green for surges, Red for drops) when breaking today's high/low, or when detecting a sudden price change (e.g., >1% movement) within a 1-minute or 5-minute window.
+* **Multi-Currency Tracking:** Tracks BTC/JPY and ETH/JPY pairs by default, rendering 5-minute candlestick charts with real-time ticker updates.
+* **Relative Strength Tracker:** Features a cleverly overlaid orange line graph that visualizes the real-time relative value (ratio) between the two tracked cryptocurrencies.
+* **Universal Compatibility:** A single, unified codebase powered by PlatformIO. It supports a wide range of devices including M5StickC/Plus, M5Stack Core2, M5StickS3 (M5Unified), and custom ESP32/ESP32-C6 setups.
 
-- M5Stack, M5StickC (Plus) or TTGO-T-Display
-- M5Stack or TTGO-T-Display library for Arduino. For example, TTGO-T-Display library can be downloaded from: https://github.com/Xinyuan-LilyGO/TTGO-T-Display
-- ArduinoJson library which can be downloaded from: https://arduinojson.org/
-- Arduino IDE to compile and transfer the compiled executable into ESP32 device.
-- WiFi access information which should be placed in auth.h (not included in this repository) which includes the following information:
+## Setup & Configuration
 
-```
-#define WIFIAP "your WiFi access point name"
-#define WIFIPW "your WiFi access point password"
-```
-
-## Future updates
-
-I do not have any plan to support any other currency nor fiat currency than Ethereum and Bitcoin. In addition, I do not have any plan to support any other API provided by other Cryptocurrency exchanges.
+1. Rename `auth.h.example` to `auth.h` and enter your Wi-Fi credentials.
+2. Select your target environment in PlatformIO (e.g., `env:m5stick-c-plus`, `env:m5stack-core2`, `env:m5stick_s3`).
+3. Build and upload!
