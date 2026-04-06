@@ -3,6 +3,8 @@ lib
 test
 auth.h
 *~
+.DS_Store
+idf_component.yml
 
 *.d
 

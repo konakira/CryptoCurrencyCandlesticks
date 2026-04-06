@@ -1,0 +1,33 @@
+name: PlatformIO CI
+
+# This setting automatically runs when a push is made to the main branch or when a pull request is received.
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest # I'll use a clean Linux server from GitHub.
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install PlatformIO
+      run: |
+        python -m pip install --upgrade pip
+        pip install platformio
+
+    # If you don't create a dummy auth.h file, the build will fail!
+    - name: Prepare auth.h
+      run: cp include/auth.h.example include/auth.h
+
+    - name: Run PlatformIO Build
+      run: pio run
