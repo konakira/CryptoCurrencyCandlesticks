@@ -1,5 +1,7 @@
 # CryptoCurrencyCandlesticks
 
+![Build Status](https://github.com/konakira/CryptoCurrencyCandlesticks/actions/workflows/build.yml/badge.svg)
+
 ![Running Image](images/M5family.jpeg "Running Image")
 
 A real-time cryptocurrency candlestick chart display terminal for ESP32 and M5Stack series devices. It fetches data from the bitbank.cc API to render live market movements directly on your desktop.
