@@ -21,3 +21,7 @@ This program uses the public candlestick API documented here: https://github.com
 1. Rename `auth.h.example` to `auth.h` and enter your Wi-Fi credentials.
 2. Select your target environment in PlatformIO (e.g., `env:m5stick-c-plus`, `env:m5stack-core2`, `env:m5stick_s3`).
 3. Build and upload!
+
+## Acknowledgements
+
+* `Free_Fonts.h` is included in this repository for convenience. It was originally created by [Bodmer](https://github.com/Bodmer) for the [TFT_eSPI library](https://github.com/Bodmer/TFT_eSPI/blob/master/examples/320%20x%20240/Free_Font_Demo/Free_Fonts.h), which elegantly wraps the free fonts provided by the [Adafruit GFX Library](https://github.com/adafruit/Adafruit-GFX-Library). Huge thanks to the original authors!
