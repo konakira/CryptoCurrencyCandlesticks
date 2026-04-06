@@ -87,6 +87,7 @@ static bool backlight_is_on = true;
 #endif // !ARDUINO_M5Stick_C
 #endif // !ARDUINO_M5Stick_C_Plus
 #include <WiFi.h>
+#include <WiFiMulti.h>
 #include <WiFiClientSecure.h>
 #define ARDUINOJSON_USE_LONG_LONG 1
 #include <ArduinoJson.h>
@@ -95,7 +96,6 @@ static bool backlight_is_on = true;
 #include <TimeLib.h>
 
 #include "Free_Fonts.h"
-#include "auth.h"
 
 #define MAX_HORIZONTAL_RESOLUTION 321
 
@@ -108,7 +108,17 @@ static bool backlight_is_on = true;
 #define LCD tft
 #endif
 
+// WiFi AP information should be stored at auth.h
+struct WifiCredential {
+  const char* ssid;
+  const char* pass;
+};
+
+#include "auth.h" // use the above WifiCredential to list multiple APs as wifi_list in "auth.h"
+const int wifi_count = sizeof(wifi_list) / sizeof(wifi_list[0]);
+
 WiFiClientSecure client;
+WiFiMulti wifiMulti;
 
 SimpleTimer timer;
 
@@ -1305,8 +1315,7 @@ void SecProc()
 	// Grey out the price display
 
 #define CONNECTION_LOST "Reconnecting ..."
-	// WiFi.begin(WIFIAP, WIFIPW);
-	WiFi.reconnect();
+	wifiMulti.run();
 	Serial.print("WiFi connection was lost.\nAttempting to reconnect to WiFi ");
 
 	LCD.setTextColor(TFT_WHITE, TFT_BLUE);
@@ -1315,7 +1324,7 @@ void SecProc()
 		       LCD.height() / 2 - LCD.fontHeight(CONNECTINGFONT) / 2, CONNECTINGFONT);
       }
       else { // not connected so far
-	WiFi.begin(WIFIAP, WIFIPW);
+	wifiMulti.run();
 	LCD.fillScreen(TFT_BLACK);
 	delay(100);
 	LCD.fillScreen(TFT_BLUE);
@@ -1406,16 +1415,18 @@ void setup()
     tftHeight -= priceHeight;
   }
 
-  Serial.print("Attempting to connect to WiFi (");
-  Serial.print(WIFIAP);
-  Serial.print(") ");
-  WiFi.begin(WIFIAP, WIFIPW);
+  Serial.println("Attempting to connect to WiFi...");
 
   LCD.fillScreen(TFT_BLUE);
   LCD.setTextColor(TFT_WHITE);
   LCD.drawString("Connecting ...",
 		 PADX, LCD.height() / 2 - LCD.fontHeight(CONNECTINGFONT) / 2, CONNECTINGFONT);
 
+  for (int i = 0; i < wifi_count; i++) {
+    wifiMulti.addAP(wifi_list[i].ssid, wifi_list[i].pass);
+  }  
+  wifiMulti.run();
+  
 #ifdef BUTTON1
   attachInterrupt(digitalPinToInterrupt(BUTTON1), buttonEventProc, FALLING);
 #endif
