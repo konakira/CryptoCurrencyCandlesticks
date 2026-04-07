@@ -596,7 +596,7 @@ static bool currencyRotationTriggered = false;
 #define FONTN4 &fonts::Font4
 #define OTHER_CURRENCY_BASE_VALUE_FONT &fonts::Font4
 #define CONNECTINGFONT &fonts::Font4
-#define PRICE_FONT_HEIGHT_ADJUSTMENT 10
+#define PRICE_FONT_HEIGHT_ADJUSTMENT 0
 #define BASE_DIFF 4
 #else
 #define PRICE_FONT FF44 // 20, 24, (36,) 44 are candidates for a price font
@@ -1162,12 +1162,14 @@ Currency::ShowCurrentPrice(bool forceReloadSticks)
     
     for (int i = 0 ; i < NRETRY ; i++) {
       if (obtainSticks(numSticks, t)) break;
+      Serial.println("obtainSticks() failed.");
       delay(500);
     }
 
     // get data for another currency
     for (int i = 0 ; i < NRETRY ; i++) {
       if (currencies[another].obtainSticks(numSticks, t, candlesticks[numSticks - 1].timeStamp)) break;
+      Serial.println("obtainSticks() failed.");
       delay(500);
     }
     calcRelative();
