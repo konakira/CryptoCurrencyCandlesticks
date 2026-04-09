@@ -1,16 +1,10 @@
-#ifdef ARDUINO_M5Stick_C_Plus
-#include <M5StickCPlus.h>
-#else // !ARDUINO_M5Stick_C_Plus
-#ifdef ARDUINO_M5Stick_C
-#include <M5StickC.h>
-#else // !ARDUINO_M5Stick_C
-#ifdef ARDUINO_M5STACK_Core2
-#include <M5Core2.h>
-#else // !ARDUINO_M5STACK_Core2
-#ifdef ARDUINO_M5STICK_S3
+#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2) || defined(ARDUINO_M5STICK_S3) || defined(ARDUINO_M5STACK_CORE_S3)
+#define ARDUINO_M5
+#endif
+
+#ifdef ARDUINO_M5
 #include <M5Unified.h>
-#else
-#ifdef ESPC6
+#else // !ARDUINO_M5
 #include <LovyanGFX.hpp>
 
 class LGFX : public lgfx::LGFX_Device {
@@ -21,38 +15,69 @@ class LGFX : public lgfx::LGFX_Device {
 public:
   LGFX(void) {
     auto bus_cfg = _bus_instance.config();
-    bus_cfg.spi_host = SPI2_HOST;
+    auto panel_cfg = _panel_instance.config();
     bus_cfg.spi_mode = 0;             
-    bus_cfg.freq_write = 40000000;    
     bus_cfg.spi_3wire  = false;       
     bus_cfg.use_lock   = true;
     bus_cfg.dma_channel = SPI_DMA_CH_AUTO;
-    
-    // 💡 公式データシート通りの【真のピン配置】
-    bus_cfg.pin_sclk = 7;  
-    bus_cfg.pin_mosi = 6;  
-    bus_cfg.pin_miso = -1; 
-    bus_cfg.pin_dc   = 15;
+
+#ifdef ESPC6
+    bus_cfg.freq_write = 40000000;
+    bus_cfg.spi_host = SPI2_HOST;
+    bus_cfg.pin_sclk = 7; bus_cfg.pin_mosi = 6; bus_cfg.pin_miso = -1; bus_cfg.pin_dc = 15;
+#elif defined(TTGO)
+    bus_cfg.freq_write = 40000000;
+    bus_cfg.spi_host = VSPI_HOST;
+    bus_cfg.pin_sclk = 18; bus_cfg.pin_mosi = 19; bus_cfg.pin_miso = -1; bus_cfg.pin_dc = 16;
+#else // Standard ESP32 DevKit
+    bus_cfg.freq_write = 27000000;
+    bus_cfg.spi_host = HSPI_HOST;
+    bus_cfg.pin_sclk = 14;
+    bus_cfg.pin_mosi = 13;
+    bus_cfg.pin_miso = -1;
+    bus_cfg.pin_dc = 12;
+#endif    
     
     _bus_instance.config(bus_cfg);
     _panel_instance.setBus(&_bus_instance);
 
-    auto panel_cfg = _panel_instance.config();
-    panel_cfg.pin_cs   = 14;
-    panel_cfg.pin_rst  = 21;
-    panel_cfg.panel_width  = 172;
-    panel_cfg.panel_height = 320;
-    panel_cfg.offset_x     = 34;
-    panel_cfg.offset_y     = 0;
-    panel_cfg.invert       = true;
+    // --- Panel Setup ---
+#ifdef ESPC6
+    panel_cfg.pin_cs = 14; panel_cfg.pin_rst = 21;
+    panel_cfg.panel_width = 172; panel_cfg.panel_height = 320;
+    panel_cfg.offset_x = 34; panel_cfg.invert = true;
+#elif defined(TTGO)
+    panel_cfg.pin_cs = 5;
+    panel_cfg.pin_rst = 23;
+    // TTGO resolution is 135 x 240
+    panel_cfg.panel_width  = 135; 
+    panel_cfg.panel_height = 240;
+    // configure offset
+    panel_cfg.offset_x = 52; 
+    panel_cfg.offset_y = 40; 
+    panel_cfg.invert = true;
+#else // !ESPC6 && !TTGO
+    panel_cfg.panel_width = 240; panel_cfg.panel_height = 320;
+    panel_cfg.offset_x = 0;
+    panel_cfg.offset_y = 0;
+    panel_cfg.pin_cs = 15;
+    panel_cfg.pin_rst = -1;
+    panel_cfg.invert = true;
+#endif
     panel_cfg.rgb_order    = false;
     panel_cfg.readable     = false;
     _panel_instance.config(panel_cfg);
 
+    // --- Backlight Setup ---
     auto light_cfg = _light_instance.config();
+#ifdef ESPC6
     light_cfg.pin_bl = 22;
+#elif defined(TTGO)
+    light_cfg.pin_bl = 4;
+#else
+    light_cfg.pin_bl = 2;
+#endif
     light_cfg.pwm_channel = -1; 
-    light_cfg.invert = false;
     _light_instance.config(light_cfg);
     _panel_instance.setLight(&_light_instance);
 
@@ -60,32 +85,26 @@ public:
   }
 };
 LGFX tft;
-#else
-#include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
-TFT_eSPI tft = TFT_eSPI();  // Invoke library, pins defined in User_Setup.h
-#endif
+
 #if !defined(TTGO) && !defined(ESPC6) // custom ESP32
 const int cds = 39; // VP=36, VN=39
 static bool backlight_is_on = true;
 #define CUSTOM_ESP32_TFT // for later compile switch
 #define ESP32_DEFAULT_ROTATION 0
 #define BUTTON1 0 // GPIO0
+#define TFT_BL 21
+#define TFT_BACKLIGHT_ON HIGH
 #else // TTGO || ESPC6
 #define ESP32_DEFAULT_ROTATION 1
 #ifdef ESPC6
 #define BUTTON1 9 // 💡 ESP32-C6のBOOTボタンは「9番」！
-#else
+#else // !ESPC6
 #define BUTTON1 35 // GPIO35, not sure this works or not
 #define BUTTON2 0 // GPIO0
-#endif
-#ifdef TFT_BL
-#undef TFT_BL
-#endif
-#endif // TTGO
-#endif // !ARDUINO_M5STICK_S3
-#endif // !ARDUINO_M5STACK_Core2
-#endif // !ARDUINO_M5Stick_C
-#endif // !ARDUINO_M5Stick_C_Plus
+#endif // !ESPC6
+#endif // TTGO || ESPC6
+#endif // !ARDUINO_M5
+
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include <WiFiClientSecure.h>
@@ -95,13 +114,9 @@ static bool backlight_is_on = true;
 #include <SimpleTimer.h>
 #include <TimeLib.h>
 
-#include "Free_Fonts.h"
-
 #define MAX_HORIZONTAL_RESOLUTION 321
 
-#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2)
-#define LCD M5.Lcd
-#elif defined(ARDUINO_M5STICK_S3)
+#ifdef ARDUINO_M5
 #define LCD M5.Display
 #else
 #undef LCD
@@ -581,43 +596,28 @@ static bool currencyRotationTriggered = false;
 #define PRICE_PAD_Y 10
 #define BORDER_WIDTH 2
 
-#if defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus)
-#define PRICEFONT 4
-#define FONTN2 2
-#define FONTN4 4
-#define OTHER_CURRENCY_BASE_VALUE_FONT 2
-#define PRICE_FONT_HEIGHT_ADJUSTMENT 2
-#define CONNECTINGFONT 4
-#define BASE_DIFF 0 // base difference between relative price font and its unit font
-#elif defined(ARDUINO_M5STICK_S3) || defined(ESPC6)
-#define PRICE_FONT &fonts::FreeSansBold24pt7b 
-#define PRICEFONT &fonts::FreeSansBold24pt7b
 #define FONTN2 &fonts::Font2
 #define FONTN4 &fonts::Font4
-#define OTHER_CURRENCY_BASE_VALUE_FONT &fonts::Font4
-#define CONNECTINGFONT &fonts::Font4
-#define PRICE_FONT_HEIGHT_ADJUSTMENT 0
-#define BASE_DIFF 4
-#else
-#define PRICE_FONT FF44 // 20, 24, (36,) 44 are candidates for a price font
-#define PRICEFONT GFXFF
-#define FONTN2 2
-#define FONTN4 4
-#define OTHER_CURRENCY_BASE_VALUE_FONT 4
-#define CONNECTINGFONT 4
-#define PRICE_FONT_HEIGHT_ADJUSTMENT 10
+#define CONNECTINGFONT FONTN4
+#define OTHER_CURRENCY_BASE_VALUE_FONT FONTN4
+
+#if defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus)
+#define PRICEFONT FONTN4
+#define PRICE_FONT_HEIGHT_ADJUSTMENT 2
+#define BASE_DIFF 0 // base difference between relative price font and its unit font
+#else // !(defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus))
+#define PRICEFONT &fonts::FreeSansBold24pt7b 
 #define BASE_DIFF 4 // base difference between relative price font and its unit font
-#endif
+#if defined(ARDUINO_M5STICK_S3) || defined(ARDUINO_M5STACK_CORE_S3) || defined(TTGO) || defined(ESPC6)
+#define PRICE_FONT_HEIGHT_ADJUSTMENT 0
+#else // Large Screen (320x240) & Others: Core2, Core S3, StickC Plus
+#define PRICE_FONT_HEIGHT_ADJUSTMENT 10
+#endif // Large Screen
+#endif // !(defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus))
 
-
-#ifdef ESPC6
-#define TFT_DOWNRED 0xFF0000U  // 真っ赤！
-#define TFT_UPGREEN 0x00FF00U  // 真っ緑！
-#else
-#define TFT_DOWNRED 0xC000 /* 127,   0,   0 */
-#define TFT_UPGREEN 0x0600 /*   0, 128,   0 */
-#endif
-#define TFT_DARKBLUE        0x000F      /*   0,   0, 127 */
+#define TFT_DOWNRED  0xFF0000U
+#define TFT_UPGREEN  0x00FF00U
+#define TFT_DARKBLUE 0x000088U
 
 #define ONEMINUTE_THRESHOLD 1 // per cent
 #define FIVEMINUTES_THRESHOLD 1 // per cent
@@ -627,11 +627,7 @@ static bool currencyRotationTriggered = false;
 #define ALERT_BLACK_DURATION 200 // msec
 
 void
-#if defined(ESPC6) || defined(ARDUINO_M5STICK_S3)
 DrawStringWithShade(const char *buf, int x, int y, const lgfx::v1::IFont* font, int color, int shade)
-#else
-DrawStringWithShade(const char *buf, int x, int y, unsigned font, int color, int shade)
-#endif
 {
   LCD.setTextColor(TFT_BLACK);
   LCD.drawString(buf, x - shade, y - shade, font);
@@ -640,16 +636,10 @@ DrawStringWithShade(const char *buf, int x, int y, unsigned font, int color, int
   LCD.drawString(buf, x, y, font);
 }
 
-#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2) || defined(ARDUINO_M5STICK_S3)
-#define ARDUINO_M5
-#endif
-
 #define BAT_POS_TOPRIGHT 1
 #define BAT_POS_TOPLEFT 2
 #define BAT_POS_BOTTOMLEFT 3
 #ifdef ARDUINO_M5
-#define MIN_VOLTAGE 3.0
-#define MAX_VOLTAGE 4.2
 #define TOP_OFFSET 1 // per 10
 #define HEIGHT_RANGE 8 // per 10
 void
@@ -657,18 +647,8 @@ ShowBatteryStatus(unsigned position)
 {
   unsigned batstat;
   int charging;
-#ifndef ARDUINO_M5STICK_S3
-  double vbat = M5.Axp.GetBatVoltage();
-  charging = M5.Axp.GetBatCurrent();
-
-  if (vbat > MAX_VOLTAGE) vbat = MAX_VOLTAGE;
-  if (vbat < MIN_VOLTAGE) vbat = MIN_VOLTAGE;
-  
-  batstat = (unsigned)((vbat - MIN_VOLTAGE) * 100 / (MAX_VOLTAGE - MIN_VOLTAGE));
-#else // if defined(ARDUINO_M5STICK_S3)
   batstat = M5.Power.getBatteryLevel(); // Just calling a function to obtain battery level.
   charging = M5.Power.isCharging() ? 1 : 0;
-#endif
 
   char buf[6];
   sprintf(buf, "%d%%", batstat);
@@ -1241,16 +1221,16 @@ void SecProc()
 {
   static unsigned nWiFiTrial = 0;
 
-#if defined(TFT_BL) && 0 < TFT_BL
+#ifdef CUSTOM_ESP32_TFT
   // control LED Backlight
   unsigned br = analogRead(cds);
   if (br < 1 && backlight_is_on) {
-    digitalWrite(TFT_BL, LOW);
+    tft.setBrightness(0);
     backlight_is_on = false;
     Serial.println("Back light turned off");
   }
   else if (0 < br && !backlight_is_on) {
-    digitalWrite(TFT_BL, TFT_BACKLIGHT_ON);
+    tft.setBrightness(255);
     backlight_is_on = true;
     Serial.print("Back light turned on. CdS = ");
     Serial.println(br);
@@ -1362,13 +1342,21 @@ void setup()
 {
 #ifdef ARDUINO_M5
   // initialize the M5StickC object
-  M5.begin();
-  //  M5.Axp.begin();
+  auto cfg = M5.config();
+  M5.begin(cfg);
+  LCD.init();  
   delay(500);
 #else
   // initialize TFT screen
   tft.init(); // equivalent to tft.begin();
+#ifdef TTGO
+  pinMode(4, OUTPUT);
+  digitalWrite(4, HIGH);
 #endif
+
+  tft.setBrightness(255);
+
+  #endif
 
   Serial.begin(115200);
   delay(500);  // needed by C6
@@ -1376,7 +1364,7 @@ void setup()
   Serial.println("");
   Serial.println("CryptoCurrency candlestick chart display terminal started.");
 
-#if defined(TFT_BL) && 0 < TFT_BL
+#ifdef CUSTOM_ESP32_TFT
   pinMode(cds, INPUT);
   pinMode(TFT_BL, OUTPUT);
   digitalWrite(TFT_BL, TFT_BACKLIGHT_ON);
@@ -1402,13 +1390,7 @@ void setup()
 
   LCD.setTextPadding(PADX); // seems no effect by this line.
   LCD.setTextSize(1);
-#if !(defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus))
-#if defined(ESPC6) || defined(ARDUINO_M5STICK_S3)
-  LCD.setFont(PRICE_FONT); // Select a font for last price display
-#else
-  LCD.setFreeFont(PRICE_FONT); // Select a font for last price display
-#endif
-#endif
+  LCD.setFont(PRICEFONT); // Select a font for last price display
   PriceFontHeight = LCD.fontHeight(PRICEFONT) - PRICE_FONT_HEIGHT_ADJUSTMENT;
 
   unsigned priceHeight = PriceFontHeight + LCD.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT);
