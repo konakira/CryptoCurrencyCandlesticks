@@ -9,7 +9,11 @@
 #include <LovyanGFX.hpp>
 
 class LGFX : public lgfx::LGFX_Device {
-  lgfx::Panel_ST7789 _panel_instance;
+#ifdef WOKWI
+  lgfx::Panel_ILI9341 _panel_instance; 
+#else
+  lgfx::Panel_ST7789  _panel_instance;
+#endif
   lgfx::Bus_SPI      _bus_instance;
   lgfx::Light_PWM    _light_instance;
 
@@ -31,12 +35,12 @@ public:
     bus_cfg.spi_host = VSPI_HOST;
     bus_cfg.pin_sclk = 18; bus_cfg.pin_mosi = 19; bus_cfg.pin_miso = -1; bus_cfg.pin_dc = 16;
 #else // Standard ESP32 DevKit
-    bus_cfg.freq_write = 27000000;
+    bus_cfg.freq_write = SPI_FREQUENCY;
     bus_cfg.spi_host = HSPI_HOST;
-    bus_cfg.pin_sclk = 14;
-    bus_cfg.pin_mosi = 13;
-    bus_cfg.pin_miso = -1;
-    bus_cfg.pin_dc = 12;
+    bus_cfg.pin_sclk = TFT_SCLK;
+    bus_cfg.pin_mosi = TFT_MOSI;
+    bus_cfg.pin_miso = TFT_MISO;
+    bus_cfg.pin_dc = TFT_DC;
 #endif    
     
     _bus_instance.config(bus_cfg);
@@ -58,13 +62,17 @@ public:
     panel_cfg.offset_y = 40; 
     panel_cfg.invert = true;
 #else // !ESPC6 && !TTGO
-    panel_cfg.panel_width = 240; panel_cfg.panel_height = 320;
+    panel_cfg.panel_width = TFT_WIDTH; panel_cfg.panel_height = TFT_HEIGHT;
     panel_cfg.offset_x = 0;
     panel_cfg.offset_y = 0;
-    panel_cfg.pin_cs = 15;
-    panel_cfg.pin_rst = -1;
+    panel_cfg.pin_cs = TFT_CS;
+    panel_cfg.pin_rst = TFT_RST;
+#ifdef WOKWI
+    panel_cfg.invert = false;
+#else
     panel_cfg.invert = true;
-#endif
+#endif // !WOKWI
+#endif // !ESPC6 && !TTGO
     panel_cfg.rgb_order    = false;
     panel_cfg.readable     = false;
     _panel_instance.config(panel_cfg);
@@ -76,7 +84,7 @@ public:
 #elif defined(TTGO)
     light_cfg.pin_bl = 4;
 #else
-    light_cfg.pin_bl = 2;
+    light_cfg.pin_bl = TFT_BL;
 #endif
     light_cfg.pwm_channel = -1; 
     _light_instance.config(light_cfg);
@@ -93,7 +101,6 @@ static bool backlight_is_on = true;
 #define CUSTOM_ESP32_TFT // for later compile switch
 #define ESP32_DEFAULT_ROTATION 0
 #define BUTTON1 0 // GPIO0
-#define TFT_BL 21
 #define TFT_BACKLIGHT_ON HIGH
 #else // TTGO || ESPC6
 #define ESP32_DEFAULT_ROTATION 1
@@ -1143,14 +1150,12 @@ Currency::ShowCurrentPrice(bool forceReloadSticks)
     
     for (int i = 0 ; i < NRETRY ; i++) {
       if (obtainSticks(numSticks, t)) break;
-      Serial.println("obtainSticks() failed.");
       delay(500);
     }
 
     // get data for another currency
     for (int i = 0 ; i < NRETRY ; i++) {
       if (currencies[another].obtainSticks(numSticks, t, candlesticks[numSticks - 1].timeStamp)) break;
-      Serial.println("obtainSticks() failed.");
       delay(500);
     }
     calcRelative();
