@@ -1,3 +1,5 @@
+#include <Arduino.h>
+
 #ifdef ARDUINO_M5Stick_C_Plus
 #include <M5StickCPlus.h>
 #else // !ARDUINO_M5Stick_C_Plus
