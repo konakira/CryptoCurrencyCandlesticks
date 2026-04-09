@@ -4,16 +4,18 @@
     "editor": "wokwi",
     "parts": [
 	{ "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 0, "left": 0, "attrs": {} },
-	{ "type": "wokwi-ili9341", "id": "lcd", "top": -50, "left": 150, "attrs": {} }
+    { "type": "wokwi-ili9341", "id": "lcd", "top": -50, "left": 150, "attrs": {} }
     ],
     "connections": [
-	["esp:18", "lcd:SCK", "blue"],
-	["esp:23", "lcd:MOSI", "red"],
-	["esp:19", "lcd:MISO", "green"],
-	["esp:15", "lcd:CS", "blue"],
-	["esp:2",  "lcd:DC", "green"],
-	["esp:4",  "lcd:RESET", "orange"],
-	["esp:GND.1", "lcd:GND", "black"],
-	["esp:5V", "lcd:VCC", "red"]
+	[ "esp:TX", "$serialMonitor:RX", "" ],
+	[ "esp:RX", "$serialMonitor:TX", "" ],
+	[ "esp:14", "lcd:SCK", "blue" ],
+	[ "esp:13", "lcd:MOSI", "red" ],
+	[ "esp:15", "lcd:CS", "blue" ],
+	[ "esp:2", "lcd:DC", "green" ],
+	[ "esp:GND", "lcd:GND", "black" ],
+	[ "esp:5V", "lcd:VCC", "red" ],
+	[ "esp:4", "lcd:RESET", "orange" ],
+	[ "esp:21", "lcd:LED", "white" ]
     ]
 }
