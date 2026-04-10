@@ -3,19 +3,53 @@
     "author": "Akira Kon",
     "editor": "wokwi",
     "parts": [
-	{ "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 0, "left": 0, "attrs": {} },
-    { "type": "wokwi-ili9341", "id": "lcd", "top": -50, "left": 150, "attrs": {} }
+	{
+	    "type": "board-esp32-devkit-c-v4",
+	    "id": "esp",
+	    "top": 0,  
+	    "left": 0,
+	    "rotate": 90,
+	    "attrs": {}
+	},
+	{
+	    "type": "wokwi-ili9341",
+	    "id": "lcd1",
+	    "top": 240,
+	    "left": 200,
+	    "rotate": 180,
+	    "attrs": {}
+	},
+	{
+	    "type": "wokwi-resistor",
+	    "id": "r1",
+	    "top": 100,
+	    "left": 230,
+	    "rotate": 90,
+	    "attrs": { "value": "15" }
+	},
+	{
+	    "type": "wokwi-pushbutton",
+	    "id": "btn1",
+	    "top": 280,
+	    "left": 40,
+	    "attrs": { "color": "red" }
+	}      
     ],
     "connections": [
-	[ "esp:TX", "$serialMonitor:RX", "" ],
-	[ "esp:RX", "$serialMonitor:TX", "" ],
-	[ "esp:14", "lcd:SCK", "blue" ],
-	[ "esp:13", "lcd:MOSI", "red" ],
-	[ "esp:15", "lcd:CS", "blue" ],
-	[ "esp:2", "lcd:DC", "green" ],
-	[ "esp:GND", "lcd:GND", "black" ],
-	[ "esp:5V", "lcd:VCC", "red" ],
-	[ "esp:4", "lcd:RESET", "orange" ],
-	[ "esp:21", "lcd:LED", "white" ]
-    ]
+	["esp:TX", "$serialMonitor:RX", "", []],
+	["esp:RX", "$serialMonitor:TX", "", []],
+	["esp:3V3", "lcd1:VCC", "red", [ "v-30", "h320" ]],
+	["esp:GND.2", "lcd1:GND", "black", [ "v20", "h300" ]],
+	["esp:33", "r1:1", "yellow", [ "v-20", "h100" ]],
+	["r1:2", "lcd1:LED", "yellow"],
+	["esp:23", "lcd1:MOSI", "green", [ "v30", "h260" ]],
+	["esp:18", "lcd1:SCK", "blue", [ "v40", "h250" ]],
+	["esp:19", "lcd1:MISO", "purple", [ "v50", "h240" ]],
+	["esp:15", "lcd1:CS", "orange", [ "v60", "h230" ]],
+	["esp:2", "lcd1:D/C", "brown", [ "v70", "h220" ]],
+	["esp:4", "lcd1:RST", "white", [ "v80", "h210" ]],
+	["esp:GND.1", "btn1:1.1", "black", [ "v-50", "h-220" ]],
+	["esp:0", "btn1:2.1", "orange", [ "v90" ]]
+    ],
+    "dependencies": {}
 }

@@ -36,7 +36,11 @@ public:
     bus_cfg.pin_sclk = 18; bus_cfg.pin_mosi = 19; bus_cfg.pin_miso = -1; bus_cfg.pin_dc = 16;
 #else // Standard ESP32 DevKit
     bus_cfg.freq_write = SPI_FREQUENCY;
+#ifdef WOKWI
+    bus_cfg.spi_host = VSPI_HOST;
+#else
     bus_cfg.spi_host = HSPI_HOST;
+#endif
     bus_cfg.pin_sclk = TFT_SCLK;
     bus_cfg.pin_mosi = TFT_MOSI;
     bus_cfg.pin_miso = TFT_MISO;
@@ -68,24 +72,22 @@ public:
     panel_cfg.pin_cs = TFT_CS;
     panel_cfg.pin_rst = TFT_RST;
 #ifdef WOKWI
+    panel_cfg.offset_rotation = 0;
+    panel_cfg.dummy_read_pixel = 8;
+    panel_cfg.dummy_read_bits = 1;
     panel_cfg.invert = false;
+    panel_cfg.readable = true;
 #else
     panel_cfg.invert = true;
+    panel_cfg.readable = false;
 #endif // !WOKWI
 #endif // !ESPC6 && !TTGO
     panel_cfg.rgb_order    = false;
-    panel_cfg.readable     = false;
     _panel_instance.config(panel_cfg);
 
     // --- Backlight Setup ---
     auto light_cfg = _light_instance.config();
-#ifdef ESPC6
-    light_cfg.pin_bl = 22;
-#elif defined(TTGO)
-    light_cfg.pin_bl = 4;
-#else
     light_cfg.pin_bl = TFT_BL;
-#endif
     light_cfg.pwm_channel = -1; 
     _light_instance.config(light_cfg);
     _panel_instance.setLight(&_light_instance);
@@ -112,6 +114,12 @@ static bool backlight_is_on = true;
 #endif // !ESPC6
 #endif // TTGO || ESPC6
 #endif // !ARDUINO_M5
+
+#ifdef WOKWI
+#define ROTATION_OFFSET 4
+#else
+#define ROTATION_OFFSET 0
+#endif
 
 #include <WiFi.h>
 #include <WiFiMulti.h>
@@ -1265,7 +1273,7 @@ void SecProc()
 	r = rotation_n[r];
       }
       unsigned prevNumSticks = numSticks;
-      LCD.setRotation(r);
+      LCD.setRotation(r + ROTATION_OFFSET);
       tftHeight = LCD.height() / numScreens;
       tftWidth = LCD.width();
       tftHalfHeight = tftHeight / 2;
@@ -1383,7 +1391,7 @@ void setup()
   tftWidth = LCD.width();
   LCD.fillScreen(TFT_BLACK);
 #else  
-  tft.setRotation(ESP32_DEFAULT_ROTATION); // set it to 1 or 3 for landscape resolution
+  tft.setRotation(ESP32_DEFAULT_ROTATION + ROTATION_OFFSET); // set it to 1 or 3 for landscape resolution
   tftHeight = tft.height() / numScreens;
   tftWidth = tft.width();
 #endif
