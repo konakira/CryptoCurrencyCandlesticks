@@ -31,7 +31,8 @@
 	    "type": "wokwi-pushbutton",
 	    "id": "btn1",
 	    "top": 280,
-	    "left": 40,
+	    "left": -20,
+	    "rotate": 90,
 	    "attrs": { "color": "red" }
 	}      
     ],
@@ -48,8 +49,8 @@
 	["esp:15", "lcd1:CS", "orange", [ "v60", "h230" ]],
 	["esp:2", "lcd1:D/C", "brown", [ "v70", "h220" ]],
 	["esp:4", "lcd1:RST", "white", [ "v80", "h210" ]],
-	["esp:GND.1", "btn1:1.1", "black", [ "v-50", "h-220" ]],
-	["esp:0", "btn1:2.1", "orange", [ "v90" ]]
+	["esp:GND.1", "btn1:1.l", "black", [ "v-50", "h-220" ]],
+	["esp:0", "btn1:2.l", "blue", [ "v90" ]]
     ],
     "dependencies": {}
 }

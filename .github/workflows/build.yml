@@ -8,6 +8,8 @@ on:
       - '**.md'  # Changes to files ending in ".md" will skip the test!
       - '.gitignore'
       - 'images/**'
+      - 'diagram.json'
+      - 'wokwi.toml'
   pull_request:
     branches: [ "main", "master" ]
 
