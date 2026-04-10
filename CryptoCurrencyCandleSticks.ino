@@ -1,3 +1,22 @@
+#ifdef WOKWI_WEB
+// --- PlatformIO env:wokwi build_flags ---
+#define WOKWI
+#define TFT_WIDTH 240
+#define TFT_HEIGHT 320
+#define TFT_CS 15
+#define TFT_BL 33
+#define TFT_BACKLIGHT_ON HIGH
+#define TFT_RGB_ORDER TFT_BGR
+#define SPI_FREQUENCY 4000000
+#define TFT_MOSI 23
+#define TFT_SCLK 18
+#define TFT_MISO 19
+#define TFT_DC 2
+#define TFT_RST 4
+#define LGFX_USE_SPI 1
+// ----------------------------------------
+#endif
+
 #if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2) || defined(ARDUINO_M5STICK_S3) || defined(ARDUINO_M5STACK_CORE_S3)
 #define ARDUINO_M5
 #endif
@@ -127,7 +146,46 @@ static bool backlight_is_on = true;
 #define ARDUINOJSON_USE_LONG_LONG 1
 #include <ArduinoJson.h>
 #include <SPI.h>
-#include <SimpleTimer.h>
+
+#ifdef WOKWI
+// --- SimpleTimer Implementation for WOKWI ---
+  typedef void (*timer_callback)(void);
+  class SimpleTimer {
+  public:
+    SimpleTimer() { for (int i = 0; i < 10; i++) enabled[i] = false; }
+    void run() {
+      for (int i = 0; i < 10; i++) {
+        if (enabled[i] && (millis() - last_millis[i] >= (unsigned long)intervals[i])) {
+          last_millis[i] = millis();
+          if (counts[i] > 0) counts[i]--;
+          if (counts[i] == 0) enabled[i] = false;
+          (*callbacks[i])();
+        }
+      }
+    }
+    int setInterval(long d, timer_callback f) { return setTimer(d, f, -1); }
+    int setTimer(long d, timer_callback f, int n) {
+      for (int i = 0; i < 10; i++) {
+        if (!enabled[i]) {
+          intervals[i] = d; callbacks[i] = f; counts[i] = n;
+          enabled[i] = true; last_millis[i] = millis();
+          return i;
+        }
+      }
+      return -1;
+    }
+    void deleteTimer(int id) { if (id >= 0 && id < 10) enabled[id] = false; }
+  private:
+    unsigned long last_millis[10];
+    timer_callback callbacks[10];
+    long intervals[10];
+    int counts[10];
+    bool enabled[10];
+  };
+#else
+  #include <SimpleTimer.h>
+#endif
+
 #include <TimeLib.h>
 
 #define MAX_HORIZONTAL_RESOLUTION 321
