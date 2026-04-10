@@ -145,7 +145,11 @@ struct WifiCredential {
   const char* pass;
 };
 
+#ifdef WOKWI
+struct WifiCredential wifi_list[] = {{"Wokwi-GUEST", ""}};
+#else
 #include "auth.h" // use the above WifiCredential to list multiple APs as wifi_list in "auth.h"
+#endif
 const int wifi_count = sizeof(wifi_list) / sizeof(wifi_list[0]);
 
 WiFiClientSecure client;
