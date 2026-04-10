@@ -1,7 +1,7 @@
 # Prerequisites
 lib
 test
-auth.h*
+auth.h
 *~
 .DS_Store
 idf_component.yml
