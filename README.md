@@ -1,6 +1,6 @@
 # CryptoCurrencyCandlesticks
 
-[![Build Status](https://github.com/konakira/CryptoCurrencyCandlesticks/actions/workflows/build.yml/badge.svg)(https://github.com/konakira/CryptoCurrencyCandlesticks/actions)]
+[![PlatformIO CI](https://github.com/konakira/CryptoCurrencyCandlesticks/actions/workflows/build.yml/badge.svg)](https://github.com/konakira/CryptoCurrencyCandlesticks/actions)
 
 ![Running Image](images/M5family.jpeg "Running Image")
 
