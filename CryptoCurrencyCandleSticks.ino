@@ -1082,7 +1082,7 @@ Currency::calcRelative()
   }
 }
 
-#define FLASH_TEST 1 // 1 for testing, 0 for no testing
+#define FLASH_TEST 0 // 1 for testing, 0 for no testing
 
 void
 Currency::setAlert(class alert a)
