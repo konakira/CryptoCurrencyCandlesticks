@@ -768,7 +768,7 @@ ShowBatteryStatus(unsigned position)
 	       (right - left - 4) * batstat / 100, bottom - top - 3,
 	       0 < charging ? TFT_GREEN : TFT_WHITE);
 	       
-  DrawStringWithShade(buf, right + 5, top - batyoff, FONTN2, TFT_WHITE, 1);
+  DrawStringWithShade(buf, right + 5, top - batyoff, FONTN2, LGFX_WHITE, 1);
 }
 #else
 void
@@ -840,7 +840,7 @@ Currency::ShowCurrencyName(const char *buf, int yoff)
   else {
     textY = LCD.fontHeight(FONTN2);
   }
-  LCD.setTextColor(TFT_WHITE);
+  LCD.setTextColor(LGFX_WHITE);
   LCD.drawString(buf, tftWidth - LCD.textWidth(buf, FONTN2) - 1, textY + yoff, FONTN2);
 }
 
@@ -890,9 +890,9 @@ public:
     //LCD.fillScreen(alertbgcolor);
     LCD.fillRect(0, 1 < numScreens ? tftHeight : 0 + dedicatedPriceAreaHeight,
 		 tftWidth, tftHeight, alertbgcolor);
-    LCD.setTextColor(TFT_WHITE);
+    LCD.setTextColor(LGFX_WHITE);
     itocsa(buf, PRICEBUFSIZE, lastPrice);
-    textColor = TFT_WHITE;
+    textColor = LGFX_WHITE;
     showAlert();
   }
   void flashAlert() {
@@ -913,7 +913,7 @@ private:
   char buf[PRICEBUFSIZE];
   const char *alertmesg1;
   const char *alertmesg2;
-  unsigned textColor = TFT_WHITE;
+  unsigned textColor = LGFX_WHITE;
   unsigned alertbgcolor = TFT_DOWNRED; // alert color by default
   unsigned lastPrice;
 } Alert;
@@ -1026,12 +1026,12 @@ Currency::ShowChart(int yoff)
 
   // draw highest and lowest price in the chart
   itocsa(buf, PRICEBUFSIZE, highest);
-  DrawStringWithShade(buf, tftWidth - LCD.textWidth(buf, FONTN2) - 1, yoff, FONTN2, TFT_WHITE, 1);
+  DrawStringWithShade(buf, tftWidth - LCD.textWidth(buf, FONTN2) - 1, yoff, FONTN2, LGFX_WHITE, 1);
 
   itocsa(buf, PRICEBUFSIZE, lowest);
 
   DrawStringWithShade(buf, tftWidth - LCD.textWidth(buf, FONTN2) - 1,
-		      tftHeight + yoff - LCD.fontHeight(FONTN2), FONTN2, TFT_WHITE, 1);
+		      tftHeight + yoff - LCD.fontHeight(FONTN2), FONTN2, LGFX_WHITE, 1);
 
   // show currency name
   ShowCurrencyName(name, yoff);
@@ -1377,7 +1377,7 @@ void SecProc()
 	wifiMulti.run();
 	Serial.print("WiFi connection was lost.\nAttempting to reconnect to WiFi ");
 
-	LCD.setTextColor(TFT_WHITE, TFT_BLUE);
+	LCD.setTextColor(LGFX_WHITE, TFT_BLUE);
 	LCD.drawString(CONNECTION_LOST,
 		       tftWidth / 2 - LCD.textWidth(CONNECTION_LOST, CONNECTINGFONT) / 2,
 		       LCD.height() / 2 - LCD.fontHeight(CONNECTINGFONT) / 2, CONNECTINGFONT);
@@ -1387,7 +1387,7 @@ void SecProc()
 	LCD.fillScreen(TFT_BLACK);
 	delay(100);
 	LCD.fillScreen(TFT_BLUE);
-	LCD.setTextColor(TFT_WHITE);
+	LCD.setTextColor(LGFX_WHITE);
 	LCD.drawString("Connecting ...",
 		       PADX, LCD.height() / 2 - LCD.fontHeight(CONNECTINGFONT) / 2, CONNECTINGFONT);
       }
@@ -1479,7 +1479,7 @@ void setup()
   Serial.println("Attempting to connect to WiFi...");
 
   LCD.fillScreen(TFT_BLUE);
-  LCD.setTextColor(TFT_WHITE);
+  LCD.setTextColor(LGFX_WHITE);
   LCD.drawString("Connecting ...",
 		 PADX, LCD.height() / 2 - LCD.fontHeight(CONNECTINGFONT) / 2, CONNECTINGFONT);
 
