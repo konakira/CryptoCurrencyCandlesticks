@@ -1513,12 +1513,33 @@ void loop()
       changeTriggered = true;
     }
   }
-  if (M5.BtnB.wasPressed()) {
+  else if (M5.BtnB.wasPressed()) {
     if (0 < alertDuration) {
       alertDuration = 0;
     }
     else {
       rotationTriggered = true;
+    }
+  }
+  else if (M5.Touch.getCount() > 0) {
+    auto detail = M5.Touch.getDetail(0); // Get information about the first finger.
+    // The screen is only judged at the moment it is pressed.
+    if (detail.wasPressed()) {
+      if (0 < alertDuration) {
+	alertDuration = 0;
+      }
+      else {
+	int screenHeight = M5.Display.height();
+
+	if (detail.y < screenHeight / 2) {
+	  // Touch the upper half of the screen
+	  changeTriggered = true;
+	} 
+	else {
+	  // Touch the bottom half of the screen
+	  rotationTriggered = true;
+	}
+      }
     }
   }
 #endif
