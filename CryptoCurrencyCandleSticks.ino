@@ -21,6 +21,7 @@
 #define ARDUINO_M5
 #endif
 
+#define LGFX_WHITE 0xFFFFFFU
 #ifdef ARDUINO_M5
 #include <M5Unified.h>
 #else // !ARDUINO_M5
@@ -895,7 +896,7 @@ public:
     showAlert();
   }
   void flashAlert() {
-    textColor = (textColor == TFT_WHITE) ? TFT_BLACK : TFT_WHITE;
+    textColor = (textColor == TFT_BLACK) ? LGFX_WHITE : TFT_BLACK;
     LCD.setTextColor(textColor);
     showAlert();
   }
@@ -907,7 +908,7 @@ private:
     LCD.drawString(alertmesg2, PADX, LCD.fontHeight(FONTN4) + PADY + yoff, FONTN4);
     LCD.drawString(buf,
 		   tftWidth / 2 - LCD.textWidth(buf, PRICEFONT) / 2,
-		   tftHeight - PriceFontHeight + yoff, PRICEFONT);
+		   tftHeight - PriceFontHeight + yoff, PRICEFONT);  
   }
   char buf[PRICEBUFSIZE];
   const char *alertmesg1;
