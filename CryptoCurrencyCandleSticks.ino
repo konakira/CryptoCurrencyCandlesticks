@@ -1082,6 +1082,8 @@ Currency::calcRelative()
   }
 }
 
+#define FLASH_TEST 1 // 1 for testing, 0 for no testing
+
 void
 Currency::setAlert(class alert a)
 {
@@ -1096,7 +1098,7 @@ Currency::setAlert(class alert a)
     Alert.setLastPrice(price);
     alertDuration = ALERT_DURATION;
   }
-  else if (todayshigh < price) {
+  else if (todayshigh < price || FLASH_TEST) {
     todayshigh = price;
 
     snprintf(Alert.mesgbuf, MESGSIZE, "%s hit", name);
