@@ -678,21 +678,19 @@ static bool currencyRotationTriggered = false;
 #define FONTN2 &fonts::Font2
 #define FONTN4 &fonts::Font4
 #define CONNECTINGFONT FONTN4
-#define OTHER_CURRENCY_BASE_VALUE_FONT FONTN4
 
-#if defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus)
+#if defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus) // just for M5 Stick C
 #define PRICEFONT FONTN4
-#define PRICE_FONT_HEIGHT_ADJUSTMENT 2
+#define PRICE_FONT_HEIGHT_ADJUSTMENT -4
+#define OTHER_CURRENCY_BASE_VALUE_FONT &fonts::FreeSans9pt7b
 #define BASE_DIFF 0 // base difference between relative price font and its unit font
-#else // !(defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus))
+#else // Other than M5 Stick C
 #define PRICEFONT &fonts::FreeSansBold24pt7b 
-#define BASE_DIFF 4 // base difference between relative price font and its unit font
-#if defined(ARDUINO_M5STICK_S3) || defined(ARDUINO_M5STACK_CORE_S3) || defined(TTGO) || defined(ESPC6)
 #define PRICE_FONT_HEIGHT_ADJUSTMENT 0
-#else // Large Screen (320x240) & Others: Core2, Core S3, StickC Plus
-#define PRICE_FONT_HEIGHT_ADJUSTMENT 10
-#endif // Large Screen
-#endif // !(defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus))
+#define OTHER_CURRENCY_BASE_VALUE_FONT FONTN4
+#define BASE_DIFF 4 // base difference between relative price font and its unit font
+#endif // Other than M5 Stick C
+#define OTHER_FONT_WIDTH_ADJUSTMENT 2
 
 #define TFT_DOWNRED  0xFF0000U
 #define TFT_UPGREEN  0x00FF00U
@@ -826,7 +824,7 @@ ShowRelativePrice(char *buf, const char *name, int lastPricePixel, unsigned pric
   }
   DrawStringWithShade(buf, PADX, textY + yoff, OTHER_CURRENCY_BASE_VALUE_FONT, priceColor, BORDER_WIDTH);
   DrawStringWithShade(name,
-		      PADX + LCD.textWidth(buf, OTHER_CURRENCY_BASE_VALUE_FONT),
+		      PADX + LCD.textWidth(buf, OTHER_CURRENCY_BASE_VALUE_FONT) + OTHER_FONT_WIDTH_ADJUSTMENT,
 		      textY + yoff + LCD.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT) - LCD.fontHeight(FONTN2) - BASE_DIFF, FONTN2, priceColor, BORDER_WIDTH);
 }
 
@@ -937,6 +935,11 @@ Currency::ShowChart(int yoff)
 
   yoff += dedicatedPriceAreaHeight;
 
+#define LOW_PRICE_TEST 0 // 1 for rare case testing, 0 for no testing
+#if LOW_PRICE_TEST
+  price = lowest;
+#endif
+  
   if (highest < price) {
     highest = price;
   }
@@ -1082,7 +1085,7 @@ Currency::calcRelative()
   }
 }
 
-#define FLASH_TEST 0 // 1 for testing, 0 for no testing
+#define FLASH_TEST 0 // 1 for rare case testing, 0 for no testing
 
 void
 Currency::setAlert(class alert a)
