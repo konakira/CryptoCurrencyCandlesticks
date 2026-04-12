@@ -685,7 +685,7 @@ static bool currencyRotationTriggered = false;
 #define OTHER_CURRENCY_BASE_VALUE_FONT &fonts::FreeSans9pt7b
 #define BASE_DIFF 0 // base difference between relative price font and its unit font
 #else // Other than M5 Stick C
-#define PRICEFONT &fonts::FreeSansBold24pt7b 
+#define PRICEFONT &fonts::FreeSerifBold24pt7b
 #define PRICE_FONT_HEIGHT_ADJUSTMENT 0
 #define OTHER_CURRENCY_BASE_VALUE_FONT FONTN4
 #define BASE_DIFF 4 // base difference between relative price font and its unit font
