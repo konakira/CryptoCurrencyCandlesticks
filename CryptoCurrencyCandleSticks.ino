@@ -678,19 +678,18 @@ static bool currencyRotationTriggered = false;
 #define FONTN2 &fonts::Font2
 #define FONTN4 &fonts::Font4
 #define CONNECTINGFONT FONTN4
+#define PRICE_FONT_HEIGHT_ADJUSTMENT -5
+#define OTHER_FONT_WIDTH_ADJUSTMENT 2
 
 #if defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus) // just for M5 Stick C
 #define PRICEFONT FONTN4
-#define PRICE_FONT_HEIGHT_ADJUSTMENT -4
 #define OTHER_CURRENCY_BASE_VALUE_FONT &fonts::FreeSans9pt7b
 #define BASE_DIFF 0 // base difference between relative price font and its unit font
 #else // Other than M5 Stick C
 #define PRICEFONT &fonts::FreeSerifBold24pt7b
-#define PRICE_FONT_HEIGHT_ADJUSTMENT 0
 #define OTHER_CURRENCY_BASE_VALUE_FONT FONTN4
 #define BASE_DIFF 4 // base difference between relative price font and its unit font
 #endif // Other than M5 Stick C
-#define OTHER_FONT_WIDTH_ADJUSTMENT 2
 
 #define TFT_DOWNRED  0xFF0000U
 #define TFT_UPGREEN  0x00FF00U
