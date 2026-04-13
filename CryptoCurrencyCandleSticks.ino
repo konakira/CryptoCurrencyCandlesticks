@@ -17,7 +17,7 @@
 // ----------------------------------------
 #endif
 
-#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2) || defined(ARDUINO_M5STICK_S3) || defined(ARDUINO_M5STACK_CORE_S3)
+#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2) || defined(ARDUINO_M5STICK_S3) || defined(ARDUINO_M5STACK_CORE_S3) || defined(ARDUINO_M5Stack_CoreInk)
 #define ARDUINO_M5
 #endif
 
@@ -192,10 +192,32 @@ static bool backlight_is_on = true;
 #define MAX_HORIZONTAL_RESOLUTION 321
 
 #ifdef ARDUINO_M5
-#define LCD M5.Display
+#define PHYSICAL_LCD M5.Display
 #else
-#undef LCD
-#define LCD tft
+#define PHYSICAL_LCD tft
+#endif
+
+// sprite canvas definitions
+LGFX_Sprite canvas(&PHYSICAL_LCD);
+#define LCD canvas  // Let all existing LCD.xxxx call to canvas
+
+// color definitions
+#ifdef ARDUINO_M5Stack_CoreInk
+  #define COLOR_BG      TFT_WHITE
+  #define COLOR_TEXT    TFT_BLACK
+  #define COLOR_UP      TFT_LIGHTGRAY
+  #define COLOR_DOWN    TFT_DARKGRAY
+  #define COLOR_WICK    TFT_BLACK
+  #define COLOR_GRID    TFT_LIGHTGRAY
+  #define COLOR_PRICE_L TFT_BLACK
+#else
+  #define COLOR_BG      TFT_BLACK
+  #define COLOR_TEXT    LGFX_WHITE
+  #define COLOR_UP      TFT_UPGREEN
+  #define COLOR_DOWN    TFT_DOWNRED
+  #define COLOR_WICK    TFT_LIGHTGREY
+  #define COLOR_GRID    TFT_DARKBLUE
+  #define COLOR_PRICE_L (priceColor == TFT_GREEN ? TFT_UPGREEN : TFT_DOWNRED)
 #endif
 
 // WiFi AP information should be stored at auth.h
@@ -755,7 +777,7 @@ ShowBatteryStatus(unsigned position)
   bottom = top + batheight;
   right = left + batwidth;
     
-  LCD.fillRect(left - 1, top - 1, right - left + 3, bottom - top + 2, TFT_BLACK);
+  LCD.fillRect(left - 1, top - 1, right - left + 3, bottom - top + 2, COLOR_BG);
   LCD.drawLine(left + 1, top, right - 3, top, TFT_LIGHTGREY);
   LCD.drawLine(left + 1, bottom, right - 3, bottom, TFT_LIGHTGREY);
   LCD.drawLine(left, top + 1, left, bottom - 1, TFT_LIGHTGREY);
@@ -763,8 +785,8 @@ ShowBatteryStatus(unsigned position)
   LCD.fillRect(right, top + (bottom - top - pluslen) / 2, 2, pluslen, TFT_LIGHTGREY);
   LCD.fillRect(left + 2, top + 2,
 	       (right - left - 4) * batstat / 100, bottom - top - 3,
-	       0 < charging ? TFT_GREEN : TFT_WHITE);
-	       
+               0 < charging ? TFT_GREEN : COLOR_TEXT);
+  
   DrawStringWithShade(buf, right + 5, top - batyoff, FONTN2, LGFX_WHITE, 1);
 }
 #else
@@ -837,7 +859,7 @@ Currency::ShowCurrencyName(const char *buf, int yoff)
   else {
     textY = LCD.fontHeight(FONTN2);
   }
-  LCD.setTextColor(LGFX_WHITE);
+  LCD.setTextColor(COLOR_TEXT);
   LCD.drawString(buf, tftWidth - LCD.textWidth(buf, FONTN2) - 1, textY + yoff, FONTN2);
 }
 
@@ -859,6 +881,7 @@ Currency::ShowStatus(const char *status, int yoff)
   LCD.setTextColor(TFT_WHITE, TFT_BLUE);
   LCD.drawString(status, tftWidth - LCD.textWidth(status, FONTN2) - 1,
 		 textY + dedicatedPriceAreaHeight, FONTN2);
+  canvas.pushSprite(0, 0);
 }
 
 void
@@ -906,6 +929,7 @@ private:
     LCD.drawString(buf,
 		   tftWidth / 2 - LCD.textWidth(buf, PRICEFONT) / 2,
 		   tftHeight - PriceFontHeight + yoff, PRICEFONT);  
+    canvas.pushSprite(0, 0);
   }
   char buf[PRICEBUFSIZE];
   const char *alertmesg1;
@@ -928,7 +952,7 @@ void
 Currency::ShowChart(int yoff)
 {
   char buf[PRICEBUFSIZE], buf2[PRICEBUFSIZE];
-  unsigned stickColor = TFT_DOWNRED, priceColor = TFT_GREEN;
+  unsigned stickColor = COLOR_DOWN, priceColor = TFT_GREEN;
 
   // show the chart
 
@@ -955,7 +979,7 @@ Currency::ShowChart(int yoff)
   }
   for (int i = lowest / priceline + 1 ; i * priceline < highest ; i++) {
     int y = map(i * priceline, lowest, highest, tftHeight, 0);
-    LCD.drawFastHLine(0, y + yoff, tftWidth, TFT_DARKBLUE);
+    LCD.drawFastHLine(0, y + yoff, tftWidth, COLOR_GRID);
   }
 
   // get the position to draw last price
@@ -973,7 +997,7 @@ Currency::ShowChart(int yoff)
     unsigned curHour = hour(candlesticks[i].timeStamp + TIMEZONE);
     if (curHour != prevHour) {
       prevHour = curHour;
-      LCD.drawFastVLine(i * 3 + 1, yoff, tftHeight, TFT_DARKBLUE);
+      LCD.drawFastVLine(i * 3 + 1, yoff, tftHeight, COLOR_GRID);
       if (curHour % 3 == 0) {
 	char bufHour[4];
 	snprintf(bufHour, sizeof(bufHour) - 1, "%d", curHour);
@@ -1010,31 +1034,30 @@ Currency::ShowChart(int yoff)
       lowPixel = map(candlesticks[i].endPrice, lowest, highest, tftHeight, 0);
       pixelHeight = map(candlesticks[i].startPrice, lowest, highest, tftHeight, 0)
 	- lowPixel;
-      stickColor = TFT_UPGREEN;
+      stickColor = COLOR_UP;
     }
     else {
       lowPixel = map(candlesticks[i].startPrice, lowest, highest, tftHeight, 0);
       pixelHeight = map(candlesticks[i].endPrice, lowest, highest, tftHeight, 0)
 	- lowPixel;
-      stickColor = TFT_DOWNRED;
+      stickColor = COLOR_DOWN;
     }
 
-    LCD.drawFastVLine(i * 3 + 1, highestPixel + yoff, lowestPixel - highestPixel, TFT_LIGHTGREY);
+    LCD.drawFastVLine(i * 3 + 1, highestPixel + yoff, lowestPixel - highestPixel, COLOR_WICK);
     LCD.fillRect(i * 3, lowPixel + yoff, 3, pixelHeight, stickColor);
   }
 
   // draw price horizontal line
-  LCD.drawFastHLine(0, pricePixel + yoff, tftWidth, priceColor == TFT_GREEN ? TFT_UPGREEN : TFT_DOWNRED);
-
+  LCD.drawFastHLine(0, pricePixel + yoff, tftWidth, COLOR_PRICE_L);
+ 
   // draw highest and lowest price in the chart
   itocsa(buf, PRICEBUFSIZE, highest);
-  DrawStringWithShade(buf, tftWidth - LCD.textWidth(buf, FONTN2) - 1, yoff, FONTN2, LGFX_WHITE, 1);
-
+  DrawStringWithShade(buf, tftWidth - LCD.textWidth(buf, FONTN2) - 1, yoff, FONTN2, COLOR_TEXT, 1);
+ 
   itocsa(buf, PRICEBUFSIZE, lowest);
 
   DrawStringWithShade(buf, tftWidth - LCD.textWidth(buf, FONTN2) - 1,
-		      tftHeight + yoff - LCD.fontHeight(FONTN2), FONTN2, LGFX_WHITE, 1);
-
+  		      tftHeight + yoff - LCD.fontHeight(FONTN2), FONTN2, COLOR_TEXT, 1);
   // show currency name
   ShowCurrencyName(name, yoff);
   
@@ -1046,7 +1069,7 @@ Currency::ShowChart(int yoff)
   ShowLastPrice(buf, pricePixel, priceColor, yoff);
   snprintf(buf2, PRICEBUFSIZE, "%.5f", relative);
   ShowRelativePrice(buf2, currencies[another].name, pricePixel,
-		    relative < prevRelative ? TFT_RED: TFT_GREEN, yoff);
+		    relative < prevRelative ? TFT_RED : TFT_GREEN, yoff);
 }
 
 void
@@ -1165,11 +1188,12 @@ Currency::setAlert(class alert a)
 void
 redrawChart(unsigned ind)
 {
-  LCD.fillScreen(TFT_BLACK);
+  LCD.fillSprite(COLOR_BG);
   currencies[ind].ShowChart(0);
   if (1 < numScreens) {
     currencies[1 - ind].ShowChart(tftHeight);
   }
+  canvas.pushSprite(0, 0);
 }
 
 void
@@ -1248,19 +1272,21 @@ Currency::ShowCurrentPrice(bool forceReloadSticks)
   if (0 < alertDuration) {
     // Alert.setLastPrice(price);
     if (1 < numScreens || 0 < dedicatedPriceAreaHeight) {
-      LCD.fillScreen(TFT_BLACK);
+      LCD.fillSprite(COLOR_BG);
       ShowChart(0);
     }
     Alert.beginAlert();
+    canvas.pushSprite(0, 0);
     Alert.alertId = timer.setTimer(ALERT_INTERVAL, alertProc, ALERT_DURATION * (1000 / ALERT_INTERVAL) + 1);
   }
   else {
     // show the chart
-    LCD.fillScreen(TFT_BLACK);
+    LCD.fillSprite(COLOR_BG);
     ShowChart(0);
     if (1 < numScreens) {
       currencies[another].ShowChart(tftHeight);
     }
+    canvas.pushSprite(0, 0);
   }
 }
 
@@ -1395,6 +1421,7 @@ void SecProc()
 	LCD.drawString("Connecting ...",
 		       PADX, LCD.height() / 2 - LCD.fontHeight(CONNECTINGFONT) / 2, CONNECTINGFONT);
       }
+      canvas.pushSprite(0, 0);
     }
     if (WIFI_ATTEMPT_LIMIT < nWiFiTrial) {
       Serial.println(" Failed to coonect");
@@ -1425,7 +1452,6 @@ void setup()
   // initialize the M5StickC object
   auto cfg = M5.config();
   M5.begin(cfg);
-  LCD.init();  
   delay(500);
 #else
   // initialize TFT screen
@@ -1456,11 +1482,18 @@ void setup()
   LCD.setRotation(1); // set it to 1 or 3 for landscape resolution
   tftHeight = LCD.height() / numScreens;
   tftWidth = LCD.width();
-  LCD.fillScreen(TFT_BLACK);
+  LCD.fillScreen(COLOR_BG);
 #else  
   tft.setRotation(ESP32_DEFAULT_ROTATION + ROTATION_OFFSET); // set it to 1 or 3 for landscape resolution
   tftHeight = tft.height() / numScreens;
   tftWidth = tft.width();
+#endif
+
+  // canvas initialization
+  canvas.createSprite(PHYSICAL_LCD.width(), PHYSICAL_LCD.height());
+
+#ifdef ARDUINO_M5Stack_CoreInk
+  PHYSICAL_LCD.setEpdMode(m5gfx::epd_mode_t::epd_quality);
 #endif
 
   tftHalfHeight = tftHeight / 2;
@@ -1486,6 +1519,7 @@ void setup()
   LCD.setTextColor(LGFX_WHITE);
   LCD.drawString("Connecting ...",
 		 PADX, LCD.height() / 2 - LCD.fontHeight(CONNECTINGFONT) / 2, CONNECTINGFONT);
+  canvas.pushSprite(0, 0);
 
   for (int i = 0; i < wifi_count; i++) {
     wifiMulti.addAP(wifi_list[i].ssid, wifi_list[i].pass);
