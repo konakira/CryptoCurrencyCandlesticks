@@ -20,6 +20,11 @@
 #if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2) || defined(ARDUINO_M5STICK_S3) || defined(ARDUINO_M5STACK_CORE_S3) || defined(ARDUINO_M5Stack_CoreInk)
 #define ARDUINO_M5
 #endif
+#ifdef E_INK
+#include <Preferences.h>
+Preferences pref;
+#define PREFNAME "CryptoCurrencyCancleSticks"
+#endif // E_INK
 
 #define LGFX_WHITE 0xFFFFFFU
 #ifdef ARDUINO_M5
@@ -773,7 +778,7 @@ void ShowHeaderDate(unsigned yoff) {
   char buf[16];
   // Get time from prevTimeStamp which is updated by ticker
   unsigned long t = currencies[cIndex].prevTimeStamp + TIMEZONE;
-  sprintf(buf, "%d/%d %d", month(t), day(t), hour(t));
+  sprintf(buf, "%d:%d", /* month(t), day(t),*/ hour(t), minute(t));
   LCD.setTextColor(COLOR_TEXT);
   // Place it to the left of the battery area
   int x = tftWidth - LCD.textWidth(buf, OTHER_CURRENCY_BASE_VALUE_FONT);
@@ -1449,6 +1454,13 @@ _ShowCurrentPrice()
   Serial.printf("Deep Sleep start: %ld sec\n", secondsToSleep);
   Serial.flush();
 
+  if (pref.begin(PREFNAME, false)) {
+    pref.putUInt("cIndex", cIndex);
+    pref.putUInt("numScreens", numScreens);
+    pref.putUInt("rotation", LCD.getRotation());
+    pref.end();
+  }
+
   delay(2000);
 
   //  M5.shutdown(secondsToSleep);
@@ -1605,10 +1617,19 @@ void setup()
   pinMode(4, OUTPUT);
   digitalWrite(4, HIGH);
 #endif
-
   tft.setBrightness(BRIGHTNESS);
-  
-  #endif
+#endif
+
+#ifdef E_INK
+  if (pref.begin(PREFNAME, false)) {
+    cIndex = pref.getUInt("cIndex", 0);
+    numScreens = pref.getUInt("numScreens", 0);
+    unsigned r = pref.getUInt("rotation", 0);
+    pref.clear(); // clear the preferences for unexpected reset
+    pref.end();
+    LCD.setRotation(r);
+  }
+#endif
 
   Serial.begin(115200);
   delay(500);  // needed by C6
