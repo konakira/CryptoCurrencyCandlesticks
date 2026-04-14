@@ -290,15 +290,25 @@ itocsa(char *buf, unsigned bufsiz, unsigned n)
   }
 }
 
+#ifndef E_INK
 #define CANDLESTICK_WIDTH "5min"
 #define CANDLESTICK_WIDTH_MIN 5
-#define TIME_LABEL_INTERVAL 3 // hour
+#define TIME_LABEL_INTERVAL 3 // 3 hours
+#else // E_INK
+#define CANDLESTICK_WIDTH "1day"
+#define CANDLESTICK_WIDTH_MIN 1440 // 24 * 60
+#define TIME_LABEL_INTERVAL 10 // 10 days
+#endif // E_INK
 
 #ifdef E_INK
 #define STICK_WIDTH 5 // width of a candle stick
 #define COLOR_BORDER COLOR_TEXT
+#define ETH_HLINE_UNIT 20000
+#define BTC_HLINE_UNIT 500000
 #else
 #define STICK_WIDTH 3 // width of a candle stick
+#define ETH_HLINE_UNIT 5000
+#define BTC_HLINE_UNIT 100000
 #endif
 #define NUM_STICKS (MAX_HORIZONTAL_RESOLUTION / STICK_WIDTH)
 
@@ -343,7 +353,7 @@ public:
 #ifndef E_INK
   void setAlert(class alert a);
 #endif
-} currencies[2] = {{"ETH", "eth_jpy", 5000}, {"BTC", "btc_jpy", 100000}};
+} currencies[2] = {{"ETH", "eth_jpy", ETH_HLINE_UNIT}, {"BTC", "btc_jpy", BTC_HLINE_UNIT}};
 
 static unsigned cIndex = 0; // ETH by default.
 
@@ -373,7 +383,11 @@ Currency::sendRequest(unsigned long t)
 #endif
   {
     char yyyymmdd[9]; // 9 for "yyyymmdd"
+#ifndef E_INK
     sprintf(yyyymmdd, "%04d%02d%02d", year(t), month(t), day(t));
+#else // E_INK
+    sprintf(yyyymmdd, "%04d", year(t));
+#endif // E_INK
     client.print(yyyymmdd);
     client.println(" HTTP/1.0");
 #ifdef SHOW_HTTPHEADERS
@@ -610,7 +624,6 @@ Currency::obtainSticks(unsigned n, unsigned long t)
   return obtainSticks(n, t, 0);
 }
 
-
 // Output timestamp to serial terminal
 void
 SerialPrintTimestamp(unsigned t, unsigned tz)
@@ -755,6 +768,21 @@ static bool currencyRotationTriggered = false;
 #define MESGSIZE 64
 #define ALERT_BLACK_DURATION 200 // msec
 
+#ifdef E_INK
+void ShowHeaderDate(unsigned yoff) {
+  char buf[16];
+  // Get time from prevTimeStamp which is updated by ticker
+  unsigned long t = currencies[cIndex].prevTimeStamp + TIMEZONE;
+  sprintf(buf, "%d/%d", month(t), day(t));
+  LCD.setTextColor(COLOR_TEXT);
+  // Place it to the left of the battery area
+  int x = tftWidth - LCD.textWidth(buf, OTHER_CURRENCY_BASE_VALUE_FONT);
+  LCD.drawString(buf, (x < 0 ? 5 : x), yoff, OTHER_CURRENCY_BASE_VALUE_FONT);
+}
+#else
+void ShowHeaderDate(unsigned yoff) {}
+#endif
+
 void
 DrawStringWithShade(const char *buf, int x, int y, const lgfx::v1::IFont* font, int color, int shade)
 {
@@ -776,6 +804,7 @@ DrawStringWithShade(const char *buf, int x, int y, const lgfx::v1::IFont* font, 
 #ifdef ARDUINO_M5
 #define TOP_OFFSET 1 // per 10
 #define HEIGHT_RANGE 8 // per 10
+
 void
 ShowBatteryStatus(unsigned position)
 {
@@ -836,6 +865,7 @@ ShowLastPrice(char *buf, int lastPricePixel, unsigned priceColor, int yoff)
     textY = 0;
     if (yoff == 0) {
       ShowBatteryStatus(BAT_POS_TOPRIGHT);
+      ShowHeaderDate(LCD.fontHeight(PRICEFONT));
     }
   }
   else {
@@ -1032,26 +1062,40 @@ Currency::ShowChart(int yoff)
 
   // get initial position for relative price
   unsigned prevRel = floatmap(candlesticks[0].relative, lowestRelative, highestRelative, tftHeight, 0);
-  unsigned prevHour = hour(candlesticks[0].timeStamp + TIMEZONE);
+
+#ifndef E_INK
+  unsigned prevTimeVal = hour(candlesticks[0].timeStamp + TIMEZONE);
+#else
+  unsigned prevTimeVal = day(candlesticks[0].timeStamp + TIMEZONE);
+#endif
     
   itocsa(buf, PRICEBUFSIZE, highest);
 
   // draw candlesticks
   for (unsigned i = 0 ; i < numSticks ; i++) {
-    // draw vertical hour line
-    unsigned curHour = hour(candlesticks[i].timeStamp + TIMEZONE);
-    if (curHour != prevHour) {
-      prevHour = curHour;
-#ifdef E_INK
-      // Draw explicit dotted line for e-ink
-      for (int y = yoff; y < tftHeight + yoff; y += 4) LCD.drawPixel(i * STICK_WIDTH + 1, y, COLOR_GRID);
+    // draw vertical grid line (Hour or Day boundary)
+#ifndef E_INK
+    unsigned curTimeVal = hour(candlesticks[i].timeStamp + TIMEZONE);
 #else
+    unsigned curTimeVal = day(candlesticks[i].timeStamp + TIMEZONE);
+#endif
+
+    if (curTimeVal != prevTimeVal) {
+      prevTimeVal = curTimeVal;
+#ifndef E_INK
       LCD.drawFastVLine(i * STICK_WIDTH + 1, yoff, tftHeight, COLOR_GRID);
 #endif
-      if (curHour % TIME_LABEL_INTERVAL == 0) {
-	char bufHour[4];
-	snprintf(bufHour, sizeof(bufHour) - 1, "%d", curHour);
-	int offset = LCD.textWidth(bufHour, FONTN2) / 2;
+      if (curTimeVal % TIME_LABEL_INTERVAL == 0) {
+	char bufLabel[8];
+#ifndef E_INK
+	snprintf(bufLabel, sizeof(bufLabel), "%d", curTimeVal);
+#else
+	// Show Month/Day for E-Ink daily chart
+	snprintf(bufLabel, sizeof(bufLabel), "%d/%d", month(candlesticks[i].timeStamp + TIMEZONE), curTimeVal);
+        // Only draw dotted grid for e-ink on label intervals (every 10 days)
+        for (int y = yoff; y < tftHeight + yoff; y += 4) LCD.drawPixel(i * STICK_WIDTH + 1, y, COLOR_GRID);
+#endif
+	int offset = LCD.textWidth(bufLabel, FONTN2) / 2;
 	if (i * STICK_WIDTH < tftWidth - LCD.textWidth(buf, FONTN2) - offset - PADX) {
 	  // if we have enough space around vertical line, draw the time
 	  unsigned textY = 0;
@@ -1060,7 +1104,7 @@ Currency::ShowChart(int yoff)
 	    textY = tftHeight - LCD.fontHeight(FONTN2);
 	  }
 	  LCD.setTextColor(COLOR_TIME);
-	  LCD.drawNumber(curHour, i * STICK_WIDTH - offset, textY + yoff, FONTN2);
+	  LCD.drawString(bufLabel, i * STICK_WIDTH - offset, textY + yoff, FONTN2);
 	}
       }
     }
