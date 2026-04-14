@@ -24,6 +24,11 @@
 #define LGFX_WHITE 0xFFFFFFU
 #ifdef ARDUINO_M5
 #include <M5Unified.h>
+#ifdef ARDUINO_M5Stack_CoreInk
+#define DEFAULT_ROTATION 0
+#else // !ARDUINO_M5Stack_CoreInk
+#define DEFAULT_ROTATION 1
+#endif // !ARDUINO_M5Stack_CoreInk
 #else // !ARDUINO_M5
 #include <Arduino.h>
 #include <LovyanGFX.hpp>
@@ -121,11 +126,11 @@ LGFX tft;
 const int cds = 39; // VP=36, VN=39
 static bool backlight_is_on = true;
 #define CUSTOM_ESP32_TFT // for later compile switch
-#define ESP32_DEFAULT_ROTATION 0
+#define DEFAULT_ROTATION 0
 #define BUTTON1 0 // GPIO0
 #define TFT_BACKLIGHT_ON HIGH
 #else // TTGO || ESPC6
-#define ESP32_DEFAULT_ROTATION 1
+#define DEFAULT_ROTATION 1
 #ifdef ESPC6
 #define BUTTON1 9 // 💡 ESP32-C6のBOOTボタンは「9番」！
 #else // !ESPC6
@@ -202,22 +207,30 @@ LGFX_Sprite canvas(&PHYSICAL_LCD);
 #define LCD canvas  // Let all existing LCD.xxxx call to canvas
 
 // color definitions
-#ifdef ARDUINO_M5Stack_CoreInk
-  #define COLOR_BG      TFT_WHITE
-  #define COLOR_TEXT    TFT_BLACK
-  #define COLOR_UP      TFT_LIGHTGRAY
-  #define COLOR_DOWN    TFT_DARKGRAY
-  #define COLOR_WICK    TFT_BLACK
-  #define COLOR_GRID    TFT_LIGHTGRAY
-  #define COLOR_PRICE_L TFT_BLACK
+#ifdef E_INK
+#define COLOR_BG      TFT_WHITE
+#define COLOR_CONNECTIONBG TFT_WHITE
+#define COLOR_TEXT    TFT_BLACK
+#define COLOR_UP      TFT_WHITE
+#define COLOR_DOWN    TFT_BLACK
+#define COLOR_WICK    TFT_BLACK
+#define COLOR_GRID    COLOR_TEXT
+#define COLOR_PRICE_L TFT_BLACK
+#define COLOR_TIME TFT_BLACK
+#define COLOR_BATTERY TFT_BLACK
+#define COLOR_CHARGING COLOR_TEXT
 #else
-  #define COLOR_BG      TFT_BLACK
-  #define COLOR_TEXT    LGFX_WHITE
-  #define COLOR_UP      TFT_UPGREEN
-  #define COLOR_DOWN    TFT_DOWNRED
-  #define COLOR_WICK    TFT_LIGHTGREY
-  #define COLOR_GRID    TFT_DARKBLUE
-  #define COLOR_PRICE_L (priceColor == TFT_GREEN ? TFT_UPGREEN : TFT_DOWNRED)
+#define COLOR_BG      TFT_BLACK
+#define COLOR_CONNECTIONBG TFT_BLUE
+#define COLOR_TEXT    LGFX_WHITE
+#define COLOR_UP      TFT_UPGREEN
+#define COLOR_DOWN    TFT_DOWNRED
+#define COLOR_WICK    TFT_LIGHTGREY
+#define COLOR_GRID    TFT_DARKBLUE
+#define COLOR_PRICE_L (priceColor == TFT_GREEN ? TFT_UPGREEN : TFT_DOWNRED)
+#define COLOR_TIME TFT_LIGHTGREY
+#define COLOR_BATTERY TFT_WHITE
+#define COLOR_CHARGING TFT_UPGREEN
 #endif
 
 // WiFi AP information should be stored at auth.h
@@ -237,6 +250,10 @@ WiFiClientSecure client;
 WiFiMulti wifiMulti;
 
 SimpleTimer timer;
+
+#ifndef BRIGHTNESS
+#define BRIGHTNESS 255
+#endif
 
 #define SERVER "public.bitbank.cc"
 
@@ -276,7 +293,12 @@ itocsa(char *buf, unsigned bufsiz, unsigned n)
 #define CANDLESTICK_WIDTH "5min"
 #define CANDLESTICK_WIDTH_MIN 5
 
+#ifdef E_INK
+#define STICK_WIDTH 5 // width of a candle stick
+#define COLOR_BORDER COLOR_TEXT
+#else
 #define STICK_WIDTH 3 // width of a candle stick
+#endif
 #define NUM_STICKS (MAX_HORIZONTAL_RESOLUTION / STICK_WIDTH)
 
 class Currency {
@@ -332,7 +354,7 @@ unsigned numSticks = 1;
 
 #define TIMEZONE (9 * 60 * 60)
 #define MINIMUM_SPLITTABLE_HEIGHT 239 // for splitting screen into dual one
-#define MINIMUM_SEPARATABLE_HEIGHT 150 // for price and chart seperation
+#define MINIMUM_SEPARATABLE_HEIGHT 120 // for price and chart seperation
 #define MINIMUM_WIDTH 199 // allowed minimum width used in rotation
 
 void
@@ -708,7 +730,11 @@ static bool currencyRotationTriggered = false;
 #define OTHER_CURRENCY_BASE_VALUE_FONT &fonts::FreeSans9pt7b
 #define BASE_DIFF 0 // base difference between relative price font and its unit font
 #else // Other than M5 Stick C
+#ifdef ARDUINO_M5Stack_CoreInk
+#define PRICEFONT &fonts::FreeSerifBold18pt7b
+#else
 #define PRICEFONT &fonts::FreeSerifBold24pt7b
+#endif
 #define OTHER_CURRENCY_BASE_VALUE_FONT FONTN4
 #define BASE_DIFF 4 // base difference between relative price font and its unit font
 #endif // Other than M5 Stick C
@@ -727,10 +753,15 @@ static bool currencyRotationTriggered = false;
 void
 DrawStringWithShade(const char *buf, int x, int y, const lgfx::v1::IFont* font, int color, int shade)
 {
-  LCD.setTextColor(TFT_BLACK);
+#ifndef E_INK
+  // Disable text shade on Core Ink to prevent the "ghosting" or "double letters" smudge
+  LCD.setTextColor(COLOR_BG);
   LCD.drawString(buf, x - shade, y - shade, font);
   LCD.drawString(buf, x + shade, y + shade, font);
   LCD.setTextColor(color);
+#else
+  LCD.setTextColor(color, COLOR_BG);
+#endif
   LCD.drawString(buf, x, y, font);
 }
 
@@ -743,11 +774,9 @@ DrawStringWithShade(const char *buf, int x, int y, const lgfx::v1::IFont* font, 
 void
 ShowBatteryStatus(unsigned position)
 {
-  unsigned batstat;
-  int charging;
-  batstat = M5.Power.getBatteryLevel(); // Just calling a function to obtain battery level.
-  charging = M5.Power.isCharging() ? 1 : 0;
-
+  unsigned batstat = M5.Power.getBatteryLevel(); // Just calling a function to obtain battery level.
+  bool charging = M5.Power.isCharging();
+  
   char buf[6];
   sprintf(buf, "%d%%", batstat);
   unsigned fHeight = LCD.fontHeight(FONTN2);
@@ -778,16 +807,16 @@ ShowBatteryStatus(unsigned position)
   right = left + batwidth;
     
   LCD.fillRect(left - 1, top - 1, right - left + 3, bottom - top + 2, COLOR_BG);
-  LCD.drawLine(left + 1, top, right - 3, top, TFT_LIGHTGREY);
-  LCD.drawLine(left + 1, bottom, right - 3, bottom, TFT_LIGHTGREY);
-  LCD.drawLine(left, top + 1, left, bottom - 1, TFT_LIGHTGREY);
-  LCD.drawLine(right - 2, top + 1, right - 2, bottom - 1, TFT_LIGHTGREY);
-  LCD.fillRect(right, top + (bottom - top - pluslen) / 2, 2, pluslen, TFT_LIGHTGREY);
+  LCD.drawLine(left + 1, top, right - 3, top, COLOR_BATTERY);
+  LCD.drawLine(left + 1, bottom, right - 3, bottom, COLOR_BATTERY);
+  LCD.drawLine(left, top + 1, left, bottom - 1, COLOR_BATTERY);
+  LCD.drawLine(right - 2, top + 1, right - 2, bottom - 1, COLOR_BATTERY);
+  LCD.fillRect(right, top + (bottom - top - pluslen) / 2, 2, pluslen, COLOR_BATTERY);
   LCD.fillRect(left + 2, top + 2,
 	       (right - left - 4) * batstat / 100, bottom - top - 3,
-               0 < charging ? TFT_GREEN : COLOR_TEXT);
-  
-  DrawStringWithShade(buf, right + 5, top - batyoff, FONTN2, LGFX_WHITE, 1);
+	       charging ? COLOR_CHARGING : COLOR_TEXT);
+
+  DrawStringWithShade(buf, right + 5, top - batyoff, FONTN2, COLOR_TEXT, 1);
 }
 #else
 void
@@ -859,7 +888,11 @@ Currency::ShowCurrencyName(const char *buf, int yoff)
   else {
     textY = LCD.fontHeight(FONTN2);
   }
+#ifdef E_INK
+  LCD.setTextColor(COLOR_TEXT, COLOR_BG);
+#else
   LCD.setTextColor(COLOR_TEXT);
+#endif
   LCD.drawString(buf, tftWidth - LCD.textWidth(buf, FONTN2) - 1, textY + yoff, FONTN2);
 }
 
@@ -878,7 +911,7 @@ Currency::ShowStatus(const char *status, int yoff)
   else {
     textY = LCD.fontHeight(FONTN2);
   }
-  LCD.setTextColor(TFT_WHITE, TFT_BLUE);
+  LCD.setTextColor(TFT_WHITE, COLOR_CONNECTIONBG);
   LCD.drawString(status, tftWidth - LCD.textWidth(status, FONTN2) - 1,
 		 textY + dedicatedPriceAreaHeight, FONTN2);
   canvas.pushSprite(0, 0);
@@ -979,7 +1012,12 @@ Currency::ShowChart(int yoff)
   }
   for (int i = lowest / priceline + 1 ; i * priceline < highest ; i++) {
     int y = map(i * priceline, lowest, highest, tftHeight, 0);
+#ifdef E_INK
+    // Draw explicit dotted line for e-ink
+    for (int x = 0; x < tftWidth; x += 4) LCD.drawPixel(x, y + yoff, COLOR_GRID);
+#else
     LCD.drawFastHLine(0, y + yoff, tftWidth, COLOR_GRID);
+#endif
   }
 
   // get the position to draw last price
@@ -997,32 +1035,39 @@ Currency::ShowChart(int yoff)
     unsigned curHour = hour(candlesticks[i].timeStamp + TIMEZONE);
     if (curHour != prevHour) {
       prevHour = curHour;
-      LCD.drawFastVLine(i * 3 + 1, yoff, tftHeight, COLOR_GRID);
-      if (curHour % 3 == 0) {
+#ifdef E_INK
+      // Draw explicit dotted line for e-ink
+      for (int y = yoff; y < tftHeight + yoff; y += 4) LCD.drawPixel(i * STICK_WIDTH + 1, y, COLOR_GRID);
+#else
+      LCD.drawFastVLine(i * STICK_WIDTH + 1, yoff, tftHeight, COLOR_GRID);
+#endif
+      if (curHour % TIME_LABEL_INTERVAL == 0) {
 	char bufHour[4];
 	snprintf(bufHour, sizeof(bufHour) - 1, "%d", curHour);
 	int offset = LCD.textWidth(bufHour, FONTN2) / 2;
-	if (i * 3 < tftWidth - LCD.textWidth(buf, FONTN2) - offset - PADX) {
+	if (i * TIME_LABEL_INTERVAL < tftWidth - LCD.textWidth(buf, FONTN2) - offset - PADX) {
 	  // if we have enough space around vertical line, draw the time
 	  unsigned textY = 0;
 
 	  if (pricePixel < tftHalfHeight) {
 	    textY = tftHeight - LCD.fontHeight(FONTN2);
 	  }
-	  LCD.setTextColor(TFT_CYAN);
-	  LCD.drawNumber(curHour, i * 3 - offset, textY + yoff, FONTN2);
+	  LCD.setTextColor(COLOR_TIME);
+	  LCD.drawNumber(curHour, i * TIME_LABEL_INTERVAL - offset, textY + yoff, FONTN2);
 	}
       }
     }
 
+#ifndef E_INK    
     if (0 < i) { // draw graph for relative prices
       unsigned curRel = floatmap(candlesticks[i].relative, lowestRelative, highestRelative,
 				 tftHeight- 1, 2);
       // note that the lowest pixel is 2, instead of 0 to prevent collision in
       // dual screen mode
-      LCD.drawLine(i * 3 - 2, prevRel + yoff, i * 3 + 1, curRel + yoff, TFT_ORANGE);
+      LCD.drawLine(i * STICK_WIDTH - 2, prevRel + yoff, i * STICK_WIDTH + 1, curRel + yoff, TFT_ORANGE);
       prevRel = curRel;
     }
+#endif
 
     // draw candlesticks
     int lowestPixel, highestPixel, lowPixel, pixelHeight;
@@ -1043,8 +1088,11 @@ Currency::ShowChart(int yoff)
       stickColor = COLOR_DOWN;
     }
 
-    LCD.drawFastVLine(i * 3 + 1, highestPixel + yoff, lowestPixel - highestPixel, COLOR_WICK);
-    LCD.fillRect(i * 3, lowPixel + yoff, 3, pixelHeight, stickColor);
+    LCD.drawFastVLine(i * STICK_WIDTH + 1, highestPixel + yoff, lowestPixel - highestPixel, COLOR_WICK);
+    LCD.fillRect(i * STICK_WIDTH, lowPixel + yoff, STICK_WIDTH, pixelHeight, stickColor);
+#ifdef COLOR_BORDER
+    LCD.drawRect(i * STICK_WIDTH, lowPixel + yoff, STICK_WIDTH, pixelHeight, COLOR_BORDER);
+#endif
   }
 
   // draw price horizontal line
@@ -1064,12 +1112,17 @@ Currency::ShowChart(int yoff)
   // draw last price
   itocsa(buf, PRICEBUFSIZE, price);
 
+#ifdef E_INK
+  priceColor = COLOR_TEXT; // solid color for e-Ink
+#endif
   // show the current cryptocurrency price on TTGO-T-display
   yoff -= dedicatedPriceAreaHeight;
   ShowLastPrice(buf, pricePixel, priceColor, yoff);
   snprintf(buf2, PRICEBUFSIZE, "%.5f", relative);
-  ShowRelativePrice(buf2, currencies[another].name, pricePixel,
-		    relative < prevRelative ? TFT_RED : TFT_GREEN, yoff);
+#ifndef E_INK
+  priceColor = (relative < prevRelative ? TFT_RED : TFT_GREEN);
+#endif
+  ShowRelativePrice(buf2, currencies[another].name, pricePixel, priceColor, yoff);
 }
 
 void
@@ -1337,7 +1390,7 @@ void SecProc()
     Serial.println("Back light turned off");
   }
   else if (0 < br && !backlight_is_on) {
-    tft.setBrightness(255);
+    tft.setBrightness(BRIGHTNESS);
     backlight_is_on = true;
     Serial.print("Back light turned on. CdS = ");
     Serial.println(br);
@@ -1356,10 +1409,12 @@ void SecProc()
     }
     if (rotationTriggered) {
       static const unsigned rotation_w[4] = {2, 3, 1, 0}; // for wide LCD
-      static const unsigned rotation_n[4] = {1, 3, 1, 1}; // for narrow LCD
+      static const unsigned rotation_n[4] = {2, 3, 0, 1}; // for narrow LCD
       rotationTriggered = false;
       unsigned r = LCD.getRotation();
-      if (MINIMUM_WIDTH < LCD.height()) {
+      // Calculate the shortest side to tell if it can rotate 90 degrees
+      unsigned short_side = (LCD.width() < LCD.height()) ? LCD.width() : LCD.height();
+      if (MINIMUM_WIDTH < short_side) {
 	r = rotation_w[r];
       }
       else {
@@ -1370,6 +1425,16 @@ void SecProc()
       tftHeight = LCD.height() / numScreens;
       tftWidth = LCD.width();
       tftHalfHeight = tftHeight / 2;
+
+      unsigned priceHeight = PriceFontHeight + LCD.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT);
+      if (MINIMUM_SEPARATABLE_HEIGHT < tftHeight - priceHeight) {
+        dedicatedPriceAreaHeight = priceHeight;
+        tftHeight -= priceHeight;
+      }
+      else {
+        dedicatedPriceAreaHeight = 0;
+      }
+
       numSticks =
 	(tftWidth < MAX_HORIZONTAL_RESOLUTION) ? tftWidth / STICK_WIDTH : NUM_STICKS;
       if (numSticks != prevNumSticks) {
@@ -1407,17 +1472,15 @@ void SecProc()
 	wifiMulti.run();
 	Serial.print("WiFi connection was lost.\nAttempting to reconnect to WiFi ");
 
-	LCD.setTextColor(LGFX_WHITE, TFT_BLUE);
+	LCD.setTextColor(LGFX_WHITE, COLOR_CONNECTIONBG);
 	LCD.drawString(CONNECTION_LOST,
 		       tftWidth / 2 - LCD.textWidth(CONNECTION_LOST, CONNECTINGFONT) / 2,
 		       LCD.height() / 2 - LCD.fontHeight(CONNECTINGFONT) / 2, CONNECTINGFONT);
       }
       else { // not connected so far
 	wifiMulti.run();
-	LCD.fillScreen(TFT_BLACK);
-	delay(100);
-	LCD.fillScreen(TFT_BLUE);
-	LCD.setTextColor(LGFX_WHITE);
+	LCD.fillSprite(COLOR_CONNECTIONBG); // Clear canvas with proper background color
+	LCD.setTextColor(COLOR_TEXT);
 	LCD.drawString("Connecting ...",
 		       PADX, LCD.height() / 2 - LCD.fontHeight(CONNECTINGFONT) / 2, CONNECTINGFONT);
       }
@@ -1461,8 +1524,8 @@ void setup()
   digitalWrite(4, HIGH);
 #endif
 
-  tft.setBrightness(255);
-
+  tft.setBrightness(BRIGHTNESS);
+  
   #endif
 
   Serial.begin(115200);
@@ -1478,25 +1541,28 @@ void setup()
   backlight_is_on = true;
 #endif
 
-#ifdef ARDUINO_M5
-  LCD.setRotation(1); // set it to 1 or 3 for landscape resolution
-  tftHeight = LCD.height() / numScreens;
-  tftWidth = LCD.width();
-  LCD.fillScreen(COLOR_BG);
-#else  
-  tft.setRotation(ESP32_DEFAULT_ROTATION + ROTATION_OFFSET); // set it to 1 or 3 for landscape resolution
-  tftHeight = tft.height() / numScreens;
-  tftWidth = tft.width();
+  PHYSICAL_LCD.setRotation(DEFAULT_ROTATION + ROTATION_OFFSET); // set it to 1 or 3 for landscape resolution
+  
+#ifdef E_INK
+  canvas.setColorDepth(1);
+#else
+  canvas.setColorDepth(PHYSICAL_LCD.getColorDepth());
 #endif
 
-  // canvas initialization
+  // allow canvas to use PS RAM area.
+  canvas.setPsram(true);
+  
   canvas.createSprite(PHYSICAL_LCD.width(), PHYSICAL_LCD.height());
 
-#ifdef ARDUINO_M5Stack_CoreInk
+  tftWidth = canvas.width();
+  tftHeight = canvas.height() / numScreens;
+  tftHalfHeight = tftHeight / 2;
+  LCD.fillSprite(COLOR_BG);
+
+#ifdef E_INK
   PHYSICAL_LCD.setEpdMode(m5gfx::epd_mode_t::epd_quality);
 #endif
 
-  tftHalfHeight = tftHeight / 2;
   numSticks =
     (tftWidth < MAX_HORIZONTAL_RESOLUTION) ? tftWidth / STICK_WIDTH : NUM_STICKS;
 
@@ -1515,8 +1581,8 @@ void setup()
 
   Serial.println("Attempting to connect to WiFi...");
 
-  LCD.fillScreen(TFT_BLUE);
-  LCD.setTextColor(LGFX_WHITE);
+  LCD.fillSprite(COLOR_CONNECTIONBG); // Clear screen for status display
+  LCD.setTextColor(COLOR_TEXT);  
   LCD.drawString("Connecting ...",
 		 PADX, LCD.height() / 2 - LCD.fontHeight(CONNECTINGFONT) / 2, CONNECTINGFONT);
   canvas.pushSprite(0, 0);
@@ -1565,16 +1631,27 @@ void loop()
 	alertDuration = 0;
       }
       else {
-	int screenHeight = M5.Display.height();
+        int physicalHeight = M5.Display.height();
+        int physicalWidth = M5.Display.width();
+        unsigned r = LCD.getRotation() & 3;
+        bool touchUpperHalf = false;
 
-	if (detail.y < screenHeight / 2) {
-	  // Touch the upper half of the screen
-	  changeTriggered = true;
-	} 
-	else {
-	  // Touch the bottom half of the screen
-	  rotationTriggered = true;
-	}
+        // Convert physical touch coordinates to logical top/bottom based on canvas rotation
+        if (r == 0) {
+          touchUpperHalf = (detail.y < physicalHeight / 2);
+        } else if (r == 2) {
+          touchUpperHalf = (detail.y > physicalHeight / 2);
+        } else if (r == 1) {
+          touchUpperHalf = (detail.x > physicalWidth / 2);
+        } else if (r == 3) {
+          touchUpperHalf = (detail.x < physicalWidth / 2);
+        }
+
+        if (touchUpperHalf) {
+          changeTriggered = true;
+        } else {
+          rotationTriggered = true;
+        }
       }
     }
   }
