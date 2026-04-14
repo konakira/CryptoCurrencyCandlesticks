@@ -292,6 +292,7 @@ itocsa(char *buf, unsigned bufsiz, unsigned n)
 
 #define CANDLESTICK_WIDTH "5min"
 #define CANDLESTICK_WIDTH_MIN 5
+#define TIME_LABEL_INTERVAL 3 // hour
 
 #ifdef E_INK
 #define STICK_WIDTH 5 // width of a candle stick
@@ -339,7 +340,9 @@ public:
   void ShowCurrencyName(const char *buf, int yoff);
   void ShowStatus(const char *status, int yoff);
   void ShowUpdating(int yoff);
+#ifndef E_INK
   void setAlert(class alert a);
+#endif
 } currencies[2] = {{"ETH", "eth_jpy", 5000}, {"BTC", "btc_jpy", 100000}};
 
 static unsigned cIndex = 0; // ETH by default.
@@ -704,8 +707,10 @@ Currency::obtainLastPrice(unsigned long *t)
   return price;
 }
 
+#ifndef E_INK
 #define ALERT_INTERVAL 500 // msec    
 #define ALERT_DURATION (30 /* sec */ * (1000 / ALERT_INTERVAL)) // times ALERT_INTERVAL
+#endif
 static unsigned alertDuration = 0;
 static unsigned long prevCandlestickTimestamp = 0;
 static bool changeTriggered = false;
@@ -923,6 +928,7 @@ Currency::ShowUpdating(int yoff)
   ShowStatus(updating, yoff);
 }
 
+#ifndef E_INK
 class alert {
 public:
   void setBackColor(unsigned color) {
@@ -971,6 +977,7 @@ private:
   unsigned alertbgcolor = TFT_DOWNRED; // alert color by default
   unsigned lastPrice;
 } Alert;
+#endif // !E_INK
 
 int
 floatmap(float val, float l, float h, int a, int b)
@@ -1045,7 +1052,7 @@ Currency::ShowChart(int yoff)
 	char bufHour[4];
 	snprintf(bufHour, sizeof(bufHour) - 1, "%d", curHour);
 	int offset = LCD.textWidth(bufHour, FONTN2) / 2;
-	if (i * TIME_LABEL_INTERVAL < tftWidth - LCD.textWidth(buf, FONTN2) - offset - PADX) {
+	if (i * STICK_WIDTH < tftWidth - LCD.textWidth(buf, FONTN2) - offset - PADX) {
 	  // if we have enough space around vertical line, draw the time
 	  unsigned textY = 0;
 
@@ -1053,7 +1060,7 @@ Currency::ShowChart(int yoff)
 	    textY = tftHeight - LCD.fontHeight(FONTN2);
 	  }
 	  LCD.setTextColor(COLOR_TIME);
-	  LCD.drawNumber(curHour, i * TIME_LABEL_INTERVAL - offset, textY + yoff, FONTN2);
+	  LCD.drawNumber(curHour, i * STICK_WIDTH - offset, textY + yoff, FONTN2);
 	}
       }
     }
@@ -1162,6 +1169,7 @@ Currency::calcRelative()
 
 #define FLASH_TEST 0 // 1 for rare case testing, 0 for no testing
 
+#ifndef E_INK
 void
 Currency::setAlert(class alert a)
 {
@@ -1237,6 +1245,7 @@ Currency::setAlert(class alert a)
     alertDuration = ALERT_DURATION;
   }
 }
+#endif // !E_INK
 
 void
 redrawChart(unsigned ind)
@@ -1249,6 +1258,7 @@ redrawChart(unsigned ind)
   canvas.pushSprite(0, 0);
 }
 
+#ifndef E_INK
 void
 alertProc()
 {
@@ -1261,6 +1271,7 @@ alertProc()
     redrawChart(cIndex);
   }
 }
+#endif // !E_INK
 
 void
 Currency::ShowCurrentPrice(bool forceReloadSticks)
@@ -1269,9 +1280,11 @@ Currency::ShowCurrentPrice(bool forceReloadSticks)
   unsigned long prevTime;
   char buf[PRICEBUFSIZE];
 
+#ifndef E_INK
   if (0 < alertDuration) {
     return;
   }
+#endif
 
   client.setInsecure();
 
@@ -1319,6 +1332,7 @@ Currency::ShowCurrentPrice(bool forceReloadSticks)
   // check events...
   // last event has the highest priority
 
+#ifndef E_INK
   currencies[another].setAlert(Alert);
   setAlert(Alert);
 
@@ -1333,6 +1347,7 @@ Currency::ShowCurrentPrice(bool forceReloadSticks)
     Alert.alertId = timer.setTimer(ALERT_INTERVAL, alertProc, ALERT_DURATION * (1000 / ALERT_INTERVAL) + 1);
   }
   else {
+#endif// !E_INK
     // show the chart
     LCD.fillSprite(COLOR_BG);
     ShowChart(0);
@@ -1340,7 +1355,9 @@ Currency::ShowCurrentPrice(bool forceReloadSticks)
       currencies[another].ShowChart(tftHeight);
     }
     canvas.pushSprite(0, 0);
+#ifndef E_INK
   }
+#endif
 }
 
 void Currency::SwitchCurrency()
