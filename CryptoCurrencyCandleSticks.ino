@@ -773,7 +773,7 @@ void ShowHeaderDate(unsigned yoff) {
   char buf[16];
   // Get time from prevTimeStamp which is updated by ticker
   unsigned long t = currencies[cIndex].prevTimeStamp + TIMEZONE;
-  sprintf(buf, "%d/%d", month(t), day(t));
+  sprintf(buf, "%d/%d %d", month(t), day(t), hour(t));
   LCD.setTextColor(COLOR_TEXT);
   // Place it to the left of the battery area
   int x = tftWidth - LCD.textWidth(buf, OTHER_CURRENCY_BASE_VALUE_FONT);
@@ -1433,6 +1433,27 @@ _ShowCurrentPrice()
   if (WiFi.status() == WL_CONNECTED) {
     currencies[cIndex].ShowCurrentPrice(false);
   }
+#ifdef E_INK
+#define DEEPSLEEP_TEST 60 // sec to wake up testing. 0 means no testing.
+  
+#define SECONDS_IN_A_DAY 86400
+  unsigned long currentJST = currencies[1 - cIndex].prevTimeStamp + TIMEZONE;
+  unsigned int today = day(currentJST);
+  unsigned long secondsPastMidnight = currentJST % SECONDS_IN_A_DAY;
+  unsigned long secondsToSleep = SECONDS_IN_A_DAY - secondsPastMidnight;
+
+  if (0 < DEEPSLEEP_TEST) secondsToSleep = DEEPSLEEP_TEST;
+
+  M5.Display.waitDisplay();
+
+  Serial.printf("Deep Sleep start: %ld sec\n", secondsToSleep);
+  Serial.flush();
+
+  delay(2000);
+
+  //  M5.shutdown(secondsToSleep);
+  M5.Power.timerSleep(secondsToSleep); 
+#endif  
 }
 
 #define WIFI_ATTEMPT_LIMIT 30 // seconds for WiFi connection trial
