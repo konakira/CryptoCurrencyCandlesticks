@@ -946,7 +946,7 @@ Currency::ShowStatus(const char *status, int yoff)
   else {
     textY = LCD.fontHeight(FONTN2);
   }
-  LCD.setTextColor(TFT_WHITE, COLOR_CONNECTIONBG);
+  LCD.setTextColor(COLOR_TEXT, COLOR_CONNECTIONBG);
   LCD.drawString(status, tftWidth - LCD.textWidth(status, FONTN2) - 1,
 		 textY + dedicatedPriceAreaHeight, FONTN2);
   canvas.pushSprite(0, 0);
