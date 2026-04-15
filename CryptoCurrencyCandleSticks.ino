@@ -778,7 +778,7 @@ void ShowHeaderDate(unsigned yoff) {
   char buf[16];
   // Get time from prevTimeStamp which is updated by ticker
   unsigned long t = currencies[cIndex].prevTimeStamp + TIMEZONE;
-  sprintf(buf, "%d:%d", /* month(t), day(t),*/ hour(t), minute(t));
+  sprintf(buf, "%d:%02d", /* month(t), day(t),*/ hour(t), minute(t));
   LCD.setTextColor(COLOR_TEXT);
   // Place it to the left of the battery area
   int x = tftWidth - LCD.textWidth(buf, OTHER_CURRENCY_BASE_VALUE_FONT);
@@ -1439,7 +1439,7 @@ _ShowCurrentPrice()
     currencies[cIndex].ShowCurrentPrice(false);
   }
 #ifdef E_INK
-#define DEEPSLEEP_TEST 60 // sec to wake up testing. 0 means no testing.
+#define DEEPSLEEP_TEST (3600 * 3) // sec to wake up testing. 0 means no testing.
   
 #define SECONDS_IN_A_DAY 86400
   unsigned long currentJST = currencies[1 - cIndex].prevTimeStamp + TIMEZONE;
