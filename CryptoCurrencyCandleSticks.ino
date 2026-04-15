@@ -775,7 +775,7 @@ static bool currencyRotationTriggered = false;
 #define ALERT_BLACK_DURATION 200 // msec
 
 #ifdef E_INK
-#define DEEPSLEEP_TEST 60 // sec to wake up testing. 0 means no testing.
+#define DEEPSLEEP_TEST 3600 // sec to wake up testing. 0 means no testing.
 
 void ShowHeaderDate(unsigned yoff) {
   char buf[16];
@@ -1590,8 +1590,9 @@ void SecProc()
     }
   }
 #ifdef E_INK  
-#define SECONDS_IN_A_DAY 86400
-#define IDLE_TIME_TO_SLEEP 60000 // msec
+#define SECONDS_IN_A_DAY (24 * 60 * 60) // sec
+#define MIN_SLEEP_TIME 60 // sec
+#define IDLE_TIME_TO_SLEEP (60 * 1000) // msec
 
   if (millis() - lastActivityMillis > IDLE_TIME_TO_SLEEP) {
     unsigned long currentJST = currencies[1 - cIndex].prevTimeStamp + TIMEZONE;
@@ -1599,6 +1600,8 @@ void SecProc()
     unsigned long secondsPastMidnight = currentJST % SECONDS_IN_A_DAY;
     unsigned long secondsToSleep = SECONDS_IN_A_DAY - secondsPastMidnight;
 
+    if (secondsToSleep < MIN_SLEEP_TIME) secondsToSleep = MIN_SLEEP_TIME;
+    
     if (0 < DEEPSLEEP_TEST) secondsToSleep = DEEPSLEEP_TEST;
 
     ShowHeaderDate(LCD.fontHeight(PRICEFONT));
@@ -1616,9 +1619,14 @@ void SecProc()
       pref.end();
     }
 
+    // gemini suggested to reduce power, but not effective
+    // WiFi.disconnect(true);
+    // WiFi.mode(WIFI_OFF);
+    // M5.Display.sleep();
+    
     delay(2000);
 
-    //  M5.shutdown(secondsToSleep);
+    // M5.Power.deepSleep((unsigned long long)secondsToSleep * 1000000UL, false);
     M5.Power.timerSleep(secondsToSleep);
   }
 #endif  
