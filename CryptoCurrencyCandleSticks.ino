@@ -23,7 +23,8 @@
 #ifdef E_INK
 #include <Preferences.h>
 Preferences pref;
-#define PREFNAME "CryptoCurrencyCancleSticks"
+#define PREFNAME "CCCSticks"
+unsigned long lastActivityMillis = 0;
 #endif // E_INK
 
 #define LGFX_WHITE 0xFFFFFFU
@@ -774,11 +775,17 @@ static bool currencyRotationTriggered = false;
 #define ALERT_BLACK_DURATION 200 // msec
 
 #ifdef E_INK
+#define DEEPSLEEP_TEST 60 // sec to wake up testing. 0 means no testing.
+
 void ShowHeaderDate(unsigned yoff) {
   char buf[16];
   // Get time from prevTimeStamp which is updated by ticker
   unsigned long t = currencies[cIndex].prevTimeStamp + TIMEZONE;
-  sprintf(buf, "%d:%02d", /* month(t), day(t),*/ hour(t), minute(t));
+#if 0 < DEEPSLEEP_TEST
+  sprintf(buf, "%d:%02d", hour(t), minute(t));
+#else
+  sprintf(buf, "%d/%d", month(t), day(t));
+#endif
   LCD.setTextColor(COLOR_TEXT);
   // Place it to the left of the battery area
   int x = tftWidth - LCD.textWidth(buf, OTHER_CURRENCY_BASE_VALUE_FONT);
@@ -870,7 +877,6 @@ ShowLastPrice(char *buf, int lastPricePixel, unsigned priceColor, int yoff)
     textY = 0;
     if (yoff == 0) {
       ShowBatteryStatus(BAT_POS_TOPRIGHT);
-      ShowHeaderDate(LCD.fontHeight(PRICEFONT));
     }
   }
   else {
@@ -1432,40 +1438,31 @@ void Currency::SwitchCurrency()
   redrawChart(cIndex);
 }
 
+#ifdef E_INK
+void
+UpdateIdleTimer()
+{
+  lastActivityMillis = millis();
+}
+void
+UpdateIdleTimerIfNotSet()
+{
+  if (lastActivityMillis == 0) {
+    UpdateIdleTimer();
+  }
+}
+#else
+void UpdateIdleTimer() {}
+void UpdateIdleTimerIfNotSet() {}
+#endif
+
 void
 _ShowCurrentPrice()
 {
   if (WiFi.status() == WL_CONNECTED) {
     currencies[cIndex].ShowCurrentPrice(false);
   }
-#ifdef E_INK
-#define DEEPSLEEP_TEST (3600 * 3) // sec to wake up testing. 0 means no testing.
-  
-#define SECONDS_IN_A_DAY 86400
-  unsigned long currentJST = currencies[1 - cIndex].prevTimeStamp + TIMEZONE;
-  unsigned int today = day(currentJST);
-  unsigned long secondsPastMidnight = currentJST % SECONDS_IN_A_DAY;
-  unsigned long secondsToSleep = SECONDS_IN_A_DAY - secondsPastMidnight;
-
-  if (0 < DEEPSLEEP_TEST) secondsToSleep = DEEPSLEEP_TEST;
-
-  M5.Display.waitDisplay();
-
-  Serial.printf("Deep Sleep start: %ld sec\n", secondsToSleep);
-  Serial.flush();
-
-  if (pref.begin(PREFNAME, false)) {
-    pref.putUInt("cIndex", cIndex);
-    pref.putUInt("numScreens", numScreens);
-    pref.putUInt("rotation", LCD.getRotation());
-    pref.end();
-  }
-
-  delay(2000);
-
-  //  M5.shutdown(secondsToSleep);
-  M5.Power.timerSleep(secondsToSleep); 
-#endif  
+  UpdateIdleTimerIfNotSet();
 }
 
 #define WIFI_ATTEMPT_LIMIT 30 // seconds for WiFi connection trial
@@ -1500,6 +1497,7 @@ void SecProc()
     if (changeTriggered) {
       changeTriggered = false;
       currencies[cIndex].SwitchCurrency();
+      UpdateIdleTimer();
     }
     if (rotationTriggered) {
       static const unsigned rotation_w[4] = {2, 3, 1, 0}; // for wide LCD
@@ -1537,6 +1535,7 @@ void SecProc()
       else {
 	redrawChart(cIndex);
       }
+      UpdateIdleTimer();
     }
     if (currencyRotationTriggered) { // currency and screen rotation change triggered
       currencyRotationTriggered = false;
@@ -1554,6 +1553,7 @@ void SecProc()
 #else
       currencies[cIndex].SwitchCurrency();
 #endif
+      UpdateIdleTimer();
     }
   }
   else { // if FiFi.status() != WL_CONNECTED
@@ -1589,6 +1589,39 @@ void SecProc()
       Serial.print(".");
     }
   }
+#ifdef E_INK  
+#define SECONDS_IN_A_DAY 86400
+#define IDLE_TIME_TO_SLEEP 60000 // msec
+
+  if (millis() - lastActivityMillis > IDLE_TIME_TO_SLEEP) {
+    unsigned long currentJST = currencies[1 - cIndex].prevTimeStamp + TIMEZONE;
+    unsigned int today = day(currentJST);
+    unsigned long secondsPastMidnight = currentJST % SECONDS_IN_A_DAY;
+    unsigned long secondsToSleep = SECONDS_IN_A_DAY - secondsPastMidnight;
+
+    if (0 < DEEPSLEEP_TEST) secondsToSleep = DEEPSLEEP_TEST;
+
+    ShowHeaderDate(LCD.fontHeight(PRICEFONT));
+    canvas.pushSprite(0, 0);
+    M5.Display.waitDisplay();
+
+    Serial.printf("Deep Sleep start: %ld sec\n", secondsToSleep);
+    Serial.printf("cIndex = %d, numScreens = %d, rotation = %d\n", cIndex, numScreens, LCD.getRotation());
+    Serial.flush();
+
+    if (pref.begin(PREFNAME, false)) {
+      pref.putUInt("cIndex", cIndex);
+      pref.putUInt("numScreens", numScreens);
+      pref.putUInt("rotation", LCD.getRotation());
+      pref.end();
+    }
+
+    delay(2000);
+
+    //  M5.shutdown(secondsToSleep);
+    M5.Power.timerSleep(secondsToSleep);
+  }
+#endif  
 }
 
 #if !defined(ARDUINO_M5Stick_C) && !defined(ARDUINO_M5Stick_C_Plus) && !defined(ARDUINO_M5STACK_Core2)
@@ -1623,7 +1656,7 @@ void setup()
 #ifdef E_INK
   if (pref.begin(PREFNAME, false)) {
     cIndex = pref.getUInt("cIndex", 0);
-    numScreens = pref.getUInt("numScreens", 0);
+    numScreens = pref.getUInt("numScreens", 1);
     unsigned r = pref.getUInt("rotation", 0);
     pref.clear(); // clear the preferences for unexpected reset
     pref.end();
