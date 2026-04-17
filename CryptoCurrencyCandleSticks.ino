@@ -25,6 +25,7 @@
 Preferences pref;
 #define PREFNAME "CCCSticks"
 unsigned long lastActivityMillis = 0;
+#define USE_SPRITE
 #endif // E_INK
 
 #define LGFX_WHITE 0xFFFFFFU
@@ -48,6 +49,10 @@ class LGFX : public lgfx::LGFX_Device {
   lgfx::Bus_SPI      _bus_instance;
   lgfx::Light_PWM    _light_instance;
 
+#if defined(R28T)
+  lgfx::Touch_XPT2046 _touch_instance;
+#endif
+  
 public:
   LGFX(void) {
     auto bus_cfg = _bus_instance.config();
@@ -85,7 +90,7 @@ public:
 #ifdef ESPC6
     panel_cfg.pin_cs = 14; panel_cfg.pin_rst = 21;
     panel_cfg.panel_width = 172; panel_cfg.panel_height = 320;
-    panel_cfg.offset_x = 34; panel_cfg.invert = true;
+    panel_cfg.offset_x = 34; panel_cfg.invert = INVERT;
 #elif defined(TTGO)
     panel_cfg.pin_cs = 5;
     panel_cfg.pin_rst = 23;
@@ -95,7 +100,7 @@ public:
     // configure offset
     panel_cfg.offset_x = 52; 
     panel_cfg.offset_y = 40; 
-    panel_cfg.invert = true;
+    panel_cfg.invert = INVERT;
 #else // !ESPC6 && !TTGO
     panel_cfg.panel_width = TFT_WIDTH; panel_cfg.panel_height = TFT_HEIGHT;
     panel_cfg.offset_x = 0;
@@ -106,10 +111,14 @@ public:
     panel_cfg.offset_rotation = 0;
     panel_cfg.dummy_read_pixel = 8;
     panel_cfg.dummy_read_bits = 1;
-    panel_cfg.invert = false;
+    panel_cfg.invert = INVERT;
     panel_cfg.readable = true;
 #else
+#ifdef INVERT
+    panel_cfg.invert = INVERT;
+#else
     panel_cfg.invert = true;
+#endif
     panel_cfg.readable = false;
 #endif // !WOKWI
 #endif // !ESPC6 && !TTGO
@@ -124,14 +133,36 @@ public:
     _panel_instance.setLight(&_light_instance);
 
     setPanel(&_panel_instance);
+#if defined(R28T)
+    // --- Touch Panel Setup (XPT2046) ---
+    auto tcfg = _touch_instance.config();
+    tcfg.x_min      = 300;
+    tcfg.x_max      = 3900;
+    tcfg.y_min      = 300;
+    tcfg.y_max      = 3900;
+    tcfg.pin_int    = 36;
+    tcfg.bus_shared = false; 
+    tcfg.offset_rotation = 0;
+
+    tcfg.spi_host = VSPI_HOST; 
+    tcfg.pin_sclk = 25;
+    tcfg.pin_mosi = 32;
+    tcfg.pin_miso = 39;
+    tcfg.pin_cs   = 33;
+    tcfg.freq     = 1000000;
+
+    _touch_instance.config(tcfg);
+    _panel_instance.setTouch(&_touch_instance);
+#endif    
   }
 };
 LGFX tft;
 
 #if !defined(TTGO) && !defined(ESPC6) // custom ESP32
-const int cds = 39; // VP=36, VN=39
+#ifdef CDS
+const int cds = CDS;
+#endif
 static bool backlight_is_on = true;
-#define CUSTOM_ESP32_TFT // for later compile switch
 #define DEFAULT_ROTATION 0
 #define BUTTON1 0 // GPIO0
 #define TFT_BACKLIGHT_ON HIGH
@@ -208,9 +239,18 @@ static bool backlight_is_on = true;
 #define PHYSICAL_LCD tft
 #endif
 
+#ifdef USE_SPRITE
 // sprite canvas definitions
 LGFX_Sprite canvas(&PHYSICAL_LCD);
 #define LCD canvas  // Let all existing LCD.xxxx call to canvas
+void
+canvasPushSprite() {
+  canvas.pushSprite(0, 0);
+}
+#else
+#define LCD PHYSICAL_LCD
+void canvasPushSprite() {}
+#endif
 
 // color definitions
 #ifdef E_INK
@@ -775,16 +815,17 @@ static bool currencyRotationTriggered = false;
 #define ALERT_BLACK_DURATION 200 // msec
 
 #ifdef E_INK
-#define DEEPSLEEP_TEST 3600 // sec to wake up testing. 0 means no testing.
+#define DEEPSLEEP_TEST 0 // sec to wake up testing. 0 means no testing.
+#define MONITOR_DEEPSLEEP_TEST 1 // 1 to show time, 0 to show date
 
 void ShowHeaderDate(unsigned yoff) {
   char buf[16];
   // Get time from prevTimeStamp which is updated by ticker
   unsigned long t = currencies[cIndex].prevTimeStamp + TIMEZONE;
-#if 0 < DEEPSLEEP_TEST
+#if (0 < DEEPSLEEP_TEST) || (0 < MONITOR_DEEPSLEEP_TEST)
   sprintf(buf, "%d:%02d", hour(t), minute(t));
 #else
-  sprintf(buf, "%d/%d", month(t), day(t));
+    sprintf(buf, "%d/%d", month(t), day(t));
 #endif
   LCD.setTextColor(COLOR_TEXT);
   // Place it to the left of the battery area
@@ -960,7 +1001,7 @@ Currency::ShowStatus(const char *status, int yoff)
   LCD.setTextColor(COLOR_TEXT, COLOR_CONNECTIONBG);
   LCD.drawString(status, tftWidth - LCD.textWidth(status, FONTN2) - 1,
 		 textY + dedicatedPriceAreaHeight, FONTN2);
-  canvas.pushSprite(0, 0);
+  canvasPushSprite();
 }
 
 void
@@ -1009,7 +1050,7 @@ private:
     LCD.drawString(buf,
 		   tftWidth / 2 - LCD.textWidth(buf, PRICEFONT) / 2,
 		   tftHeight - PriceFontHeight + yoff, PRICEFONT);  
-    canvas.pushSprite(0, 0);
+    canvasPushSprite();
   }
   char buf[PRICEBUFSIZE];
   const char *alertmesg1;
@@ -1036,7 +1077,7 @@ Currency::ShowChart(int yoff)
   unsigned stickColor = COLOR_DOWN, priceColor = TFT_GREEN;
 
   // show the chart
-
+  
   yoff += dedicatedPriceAreaHeight;
 
 #define LOW_PRICE_TEST 0 // 1 for rare case testing, 0 for no testing
@@ -1305,12 +1346,12 @@ Currency::setAlert(class alert a)
 void
 redrawChart(unsigned ind)
 {
-  LCD.fillSprite(COLOR_BG);
+  LCD.fillScreen(COLOR_BG);
   currencies[ind].ShowChart(0);
   if (1 < numScreens) {
     currencies[1 - ind].ShowChart(tftHeight);
   }
-  canvas.pushSprite(0, 0);
+  canvasPushSprite();
 }
 
 #ifndef E_INK
@@ -1394,22 +1435,22 @@ Currency::ShowCurrentPrice(bool forceReloadSticks)
   if (0 < alertDuration) {
     // Alert.setLastPrice(price);
     if (1 < numScreens || 0 < dedicatedPriceAreaHeight) {
-      LCD.fillSprite(COLOR_BG);
+      LCD.fillScreen(COLOR_BG);
       ShowChart(0);
     }
     Alert.beginAlert();
-    canvas.pushSprite(0, 0);
+    canvasPushSprite();
     Alert.alertId = timer.setTimer(ALERT_INTERVAL, alertProc, ALERT_DURATION * (1000 / ALERT_INTERVAL) + 1);
   }
   else {
 #endif// !E_INK
     // show the chart
-    LCD.fillSprite(COLOR_BG);
+    LCD.fillScreen(COLOR_BG);
     ShowChart(0);
     if (1 < numScreens) {
       currencies[another].ShowChart(tftHeight);
     }
-    canvas.pushSprite(0, 0);
+    canvasPushSprite();
 #ifndef E_INK
   }
 #endif
@@ -1472,7 +1513,7 @@ void SecProc()
 {
   static unsigned nWiFiTrial = 0;
 
-#ifdef CUSTOM_ESP32_TFT
+#ifdef CDS
   // control LED Backlight
   unsigned br = analogRead(cds);
   if (br < 1 && backlight_is_on) {
@@ -1573,12 +1614,12 @@ void SecProc()
       }
       else { // not connected so far
 	wifiMulti.run();
-	LCD.fillSprite(COLOR_CONNECTIONBG); // Clear canvas with proper background color
+	LCD.fillScreen(COLOR_CONNECTIONBG); // Clear canvas with proper background color
 	LCD.setTextColor(COLOR_TEXT);
 	LCD.drawString("Connecting ...",
 		       PADX, LCD.height() / 2 - LCD.fontHeight(CONNECTINGFONT) / 2, CONNECTINGFONT);
       }
-      canvas.pushSprite(0, 0);
+      canvasPushSprite();
     }
     if (WIFI_ATTEMPT_LIMIT < nWiFiTrial) {
       Serial.println(" Failed to coonect");
@@ -1678,7 +1719,7 @@ void setup()
   Serial.println("");
   Serial.println("CryptoCurrency candlestick chart display terminal started.");
 
-#ifdef CUSTOM_ESP32_TFT
+#ifdef CDS
   pinMode(cds, INPUT);
   pinMode(TFT_BL, OUTPUT);
   digitalWrite(TFT_BL, TFT_BACKLIGHT_ON);
@@ -1686,7 +1727,8 @@ void setup()
 #endif
 
   PHYSICAL_LCD.setRotation(DEFAULT_ROTATION + ROTATION_OFFSET); // set it to 1 or 3 for landscape resolution
-  
+
+#ifdef USE_SPRITE
 #ifdef E_INK
   canvas.setColorDepth(1);
 #else
@@ -1697,11 +1739,12 @@ void setup()
   canvas.setPsram(true);
   
   canvas.createSprite(PHYSICAL_LCD.width(), PHYSICAL_LCD.height());
+#endif
 
-  tftWidth = canvas.width();
-  tftHeight = canvas.height() / numScreens;
+  tftWidth = LCD.width();
+  tftHeight = LCD.height() / numScreens;
   tftHalfHeight = tftHeight / 2;
-  LCD.fillSprite(COLOR_BG);
+  LCD.fillScreen(COLOR_BG);
 
 #ifdef E_INK
   PHYSICAL_LCD.setEpdMode(m5gfx::epd_mode_t::epd_quality);
@@ -1725,11 +1768,11 @@ void setup()
 
   Serial.println("Attempting to connect to WiFi...");
 
-  LCD.fillSprite(COLOR_CONNECTIONBG); // Clear screen for status display
+  LCD.fillScreen(COLOR_CONNECTIONBG); // Clear screen for status display
   LCD.setTextColor(COLOR_TEXT);  
   LCD.drawString("Connecting ...",
 		 PADX, LCD.height() / 2 - LCD.fontHeight(CONNECTINGFONT) / 2, CONNECTINGFONT);
-  canvas.pushSprite(0, 0);
+  canvasPushSprite();
 
   for (int i = 0; i < wifi_count; i++) {
     wifiMulti.addAP(wifi_list[i].ssid, wifi_list[i].pass);
@@ -1799,6 +1842,22 @@ void loop()
       }
     }
   }
+#elif defined(R28T)
+  // for E32R28T
+  static uint32_t lastTouchTime = 0;
+  int32_t x, y;
+
+  if (LCD.getTouch(&x, &y)) {
+    if (millis() - lastTouchTime > 300) { 
+      Serial.printf("Touch! X:%d, Y:%d\n", x, y);
+      if (0 < alertDuration) {
+        alertDuration = 0;
+      } else {
+	rotationTriggered = true;
+      }
+    }
+    lastTouchTime = millis();
+  }  
 #endif
   timer.run();
 }
