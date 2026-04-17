@@ -817,14 +817,13 @@ static bool currencyRotationTriggered = false;
 #define ALERT_BLACK_DURATION 200 // msec
 
 #ifdef E_INK
-#define DEEPSLEEP_TEST 0 // sec to wake up testing. 0 means no testing.
 #define MONITOR_DEEPSLEEP_TEST 1 // 1 to show time, 0 to show date
 
 void ShowHeaderDate(unsigned yoff) {
   char buf[16];
   // Get time from prevTimeStamp which is updated by ticker
   unsigned long t = currencies[cIndex].prevTimeStamp + TIMEZONE;
-#if (0 < DEEPSLEEP_TEST) || (0 < MONITOR_DEEPSLEEP_TEST)
+#if (0 < MONITOR_DEEPSLEEP_TEST)
   sprintf(buf, "%d:%02d", hour(t), minute(t));
 #else
     sprintf(buf, "%d/%d", month(t), day(t));
@@ -1665,37 +1664,43 @@ void SecProc()
     }
   }
 #ifdef E_INK  
-#define SECONDS_IN_A_DAY (24 * 60 * 60) // sec
-#define MIN_SLEEP_TIME 60 // sec
 #define IDLE_TIME_TO_SLEEP (60 * 1000) // msec
 
   if (millis() - lastActivityMillis > IDLE_TIME_TO_SLEEP) {
     unsigned long currentJST = currencies[1 - cIndex].prevTimeStamp + TIMEZONE;
-    unsigned int today = day(currentJST);
-    unsigned long secondsPastMidnight = currentJST % SECONDS_IN_A_DAY;
-    unsigned long secondsToSleep = SECONDS_IN_A_DAY - secondsPastMidnight;
-
-    if (secondsToSleep < MIN_SLEEP_TIME) secondsToSleep = MIN_SLEEP_TIME;
-    
-    if (0 < DEEPSLEEP_TEST) secondsToSleep = DEEPSLEEP_TEST;
 
     ShowHeaderDate(LCD.fontHeight(PRICEFONT));
     canvas.pushSprite(0, 0);
     M5.Display.waitDisplay();
 
-    Serial.printf("Deep Sleep start: %ld sec\n", secondsToSleep);
     Serial.printf("cIndex = %d, numScreens = %d, rotation = %d\n", cIndex, numScreens, LCD.getRotation());
     Serial.flush();
 
-    // gemini suggested to reduce power, but not effective
-    // WiFi.disconnect(true);
-    // WiFi.mode(WIFI_OFF);
-    // M5.Display.sleep();
-    
     delay(2000);
 
+    {
+      m5::rtc_time_t rtc_time;
+      rtc_time.hours   = hour(currentJST);
+      rtc_time.minutes = minute(currentJST);
+      rtc_time.seconds = second(currentJST);
+      M5.Rtc.setTime(&rtc_time);
+
+      m5::rtc_date_t rtc_date;
+      rtc_date.year  = year(currentJST);
+      rtc_date.month = month(currentJST);
+      rtc_date.date  = day(currentJST);
+      M5.Rtc.setDate(&rtc_date);
+
+      m5::rtc_time_t alarm_time;
+      alarm_time.hours   = 0;
+      alarm_time.minutes = 0;
+      alarm_time.seconds = 0;
+      M5.Rtc.setAlarmIRQ(alarm_time);
+
+      M5.Power.powerOff();
+    }
     // M5.Power.deepSleep((unsigned long long)secondsToSleep * 1000000UL, false);
-    M5.Power.timerSleep(secondsToSleep);
+    // M5.Power.timerSleep(secondsToSleep);
   }
 #endif  
 }
