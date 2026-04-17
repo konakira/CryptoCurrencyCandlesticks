@@ -1508,22 +1508,28 @@ _ShowCurrentPrice()
   UpdateIdleTimerIfNotSet();
 }
 
+#define CINDEX "cIndex"
+#define NUMSCREENS "numScreens"
+#define ROTATION "rotation"
+
 void saveSettings()
 {
   if (pref.begin(PREFNAME, false)) {
-    pref.putUInt("cIndex", cIndex);
-    pref.putUInt("numScreens", numScreens);
-    pref.putUInt("rotation", LCD.getRotation());
+    pref.putUInt(CINDEX, cIndex);
+    pref.putUInt(NUMSCREENS, numScreens);
+    pref.putUInt(ROTATION, LCD.getRotation());
     pref.end();
   }
+  Serial.printf("numScreens = %d\n", numScreens);
 }
 
 void restoreSettings()
 {
   if (pref.begin(PREFNAME, false)) {
-    cIndex = pref.getUInt("cIndex", 0);
-    numScreens = pref.getUInt("numScreens", 1);
-    unsigned r = pref.getUInt("rotation", 255);
+    cIndex = pref.getUInt(CINDEX, 0);
+    numScreens = pref.getUInt(NUMSCREENS, 1);
+    Serial.printf("numScreens = %d\n", numScreens);
+    unsigned r = pref.getUInt(ROTATION, 255);
     pref.end();
     if (r != 255) {
       LCD.setRotation(r);
@@ -1619,9 +1625,10 @@ void SecProc()
 	currencies[cIndex].SwitchCurrency();
       }
 #else
-    currencies[cIndex].SwitchCurrency();
+      currencies[cIndex].SwitchCurrency();
 #endif
       UpdateIdleTimer();
+      saveSettings();
     }
   }
   else { // if FiFi.status() != WL_CONNECTED
