@@ -17,7 +17,7 @@
 // ----------------------------------------
 #endif
 
-#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STACK_Core2) || defined(ARDUINO_M5STICK_S3) || defined(ARDUINO_M5STACK_CORE_S3) || defined(ARDUINO_M5Stack_CoreInk)
+#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STICK_S3) || defined(ARDUINO_M5STACK_Core2) || defined(ARDUINO_M5STACK_CORE_S3) || defined(ARDUINO_M5Stack_CoreInk)
 #define ARDUINO_M5
 #endif
 #ifdef E_INK
@@ -1580,7 +1580,7 @@ void SecProc()
     }
     if (currencyRotationTriggered) { // currency and screen rotation change triggered
       currencyRotationTriggered = false;
-#if defined(TTGO) || defined(ESPC6)
+#if defined(TTGO) || defined(ESPC6)	
       static const unsigned cur_rot[4] = {1, 2, 3, 0};
       unsigned r = (LCD.getRotation() & 2); // 1 to 0, 3 to 1. no choice for 2 and 4
       unsigned cr = r + cIndex;
@@ -1592,7 +1592,7 @@ void SecProc()
 	currencies[cIndex].SwitchCurrency();
       }
 #else
-      currencies[cIndex].SwitchCurrency();
+    currencies[cIndex].SwitchCurrency();
 #endif
       UpdateIdleTimer();
     }
@@ -1818,10 +1818,11 @@ void loop()
 	alertDuration = 0;
       }
       else {
+        bool touchUpperHalf = false;
+#ifdef USE_SPRITE	
         int physicalHeight = M5.Display.height();
         int physicalWidth = M5.Display.width();
         unsigned r = LCD.getRotation() & 3;
-        bool touchUpperHalf = false;
 
         // Convert physical touch coordinates to logical top/bottom based on canvas rotation
         if (r == 0) {
@@ -1833,7 +1834,9 @@ void loop()
         } else if (r == 3) {
           touchUpperHalf = (detail.x < physicalWidth / 2);
         }
-
+#else
+	touchUpperHalf = (detail.y < LCD.height() / 2);
+#endif
         if (touchUpperHalf) {
           changeTriggered = true;
         } else {
