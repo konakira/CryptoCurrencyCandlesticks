@@ -17,13 +17,15 @@
 // ----------------------------------------
 #endif
 
-#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STICK_S3) || defined(ARDUINO_M5STACK_Core2) || defined(ARDUINO_M5STACK_CORE_S3) || defined(ARDUINO_M5Stack_CoreInk)
-#define ARDUINO_M5
-#endif
-#ifdef E_INK
 #include <Preferences.h>
 Preferences pref;
 #define PREFNAME "CCCSticks"
+
+#if defined(ARDUINO_M5Stick_C) || defined(ARDUINO_M5Stick_C_Plus) || defined(ARDUINO_M5STICK_S3) || defined(ARDUINO_M5STACK_Core2) || defined(ARDUINO_M5STACK_CORE_S3) || defined(ARDUINO_M5Stack_CoreInk)
+#define ARDUINO_M5
+#endif
+
+#ifdef E_INK
 unsigned long lastActivityMillis = 0;
 #define USE_SPRITE
 #endif // E_INK
@@ -1506,6 +1508,29 @@ _ShowCurrentPrice()
   UpdateIdleTimerIfNotSet();
 }
 
+void saveSettings()
+{
+  if (pref.begin(PREFNAME, false)) {
+    pref.putUInt("cIndex", cIndex);
+    pref.putUInt("numScreens", numScreens);
+    pref.putUInt("rotation", LCD.getRotation());
+    pref.end();
+  }
+}
+
+void restoreSettings()
+{
+  if (pref.begin(PREFNAME, false)) {
+    cIndex = pref.getUInt("cIndex", 0);
+    numScreens = pref.getUInt("numScreens", 1);
+    unsigned r = pref.getUInt("rotation", 255);
+    pref.end();
+    if (r != 255) {
+      LCD.setRotation(r);
+    }
+  }
+}
+
 #define WIFI_ATTEMPT_LIMIT 30 // seconds for WiFi connection trial
 static bool WiFiConnected = false;
 
@@ -1539,6 +1564,7 @@ void SecProc()
       changeTriggered = false;
       currencies[cIndex].SwitchCurrency();
       UpdateIdleTimer();
+      saveSettings();
     }
     if (rotationTriggered) {
       static const unsigned rotation_w[4] = {2, 3, 1, 0}; // for wide LCD
@@ -1577,6 +1603,7 @@ void SecProc()
 	redrawChart(cIndex);
       }
       UpdateIdleTimer();
+      saveSettings();
     }
     if (currencyRotationTriggered) { // currency and screen rotation change triggered
       currencyRotationTriggered = false;
@@ -1653,13 +1680,6 @@ void SecProc()
     Serial.printf("cIndex = %d, numScreens = %d, rotation = %d\n", cIndex, numScreens, LCD.getRotation());
     Serial.flush();
 
-    if (pref.begin(PREFNAME, false)) {
-      pref.putUInt("cIndex", cIndex);
-      pref.putUInt("numScreens", numScreens);
-      pref.putUInt("rotation", LCD.getRotation());
-      pref.end();
-    }
-
     // gemini suggested to reduce power, but not effective
     // WiFi.disconnect(true);
     // WiFi.mode(WIFI_OFF);
@@ -1702,17 +1722,6 @@ void setup()
   tft.setBrightness(BRIGHTNESS);
 #endif
 
-#ifdef E_INK
-  if (pref.begin(PREFNAME, false)) {
-    cIndex = pref.getUInt("cIndex", 0);
-    numScreens = pref.getUInt("numScreens", 1);
-    unsigned r = pref.getUInt("rotation", 0);
-    pref.clear(); // clear the preferences for unexpected reset
-    pref.end();
-    LCD.setRotation(r);
-  }
-#endif
-
   Serial.begin(115200);
   delay(500);  // needed by C6
 
@@ -1727,6 +1736,8 @@ void setup()
 #endif
 
   PHYSICAL_LCD.setRotation(DEFAULT_ROTATION + ROTATION_OFFSET); // set it to 1 or 3 for landscape resolution
+
+  restoreSettings();
 
 #ifdef USE_SPRITE
 #ifdef E_INK
