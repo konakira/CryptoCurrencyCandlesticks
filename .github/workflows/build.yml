@@ -33,7 +33,7 @@ jobs:
 
     # If you don't create a dummy auth.h file, the build will fail!
     - name: Prepare auth.h
-      run: cp auth.h.example auth.h
+      run: cp include/auth.h.example include/auth.h
 
     - name: Run PlatformIO Build
       run: pio run
