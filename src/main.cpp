@@ -64,8 +64,8 @@ public:
     bus_cfg.use_lock   = true;
     bus_cfg.dma_channel = SPI_DMA_CH_AUTO;
 
-#ifdef SPI_HOST
-    bus_cfg.spi_host = SPI_HOST;
+#ifdef MY_SPI_HOST
+    bus_cfg.spi_host = MY_SPI_HOST;
 #else
     bus_cfg.spi_host = HSPI_HOST;
 #endif
