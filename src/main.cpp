@@ -64,18 +64,8 @@ public:
     bus_cfg.use_lock   = true;
     bus_cfg.dma_channel = SPI_DMA_CH_AUTO;
 
-#ifdef ESPC6
-    bus_cfg.freq_write = 40000000;
-    bus_cfg.spi_host = SPI2_HOST;
-    bus_cfg.pin_sclk = 7; bus_cfg.pin_mosi = 6; bus_cfg.pin_miso = -1; bus_cfg.pin_dc = 15;
-#elif defined(TTGO)
-    bus_cfg.freq_write = 40000000;
-    bus_cfg.spi_host = VSPI_HOST;
-    bus_cfg.pin_sclk = 18; bus_cfg.pin_mosi = 19; bus_cfg.pin_miso = -1; bus_cfg.pin_dc = 16;
-#else // Standard ESP32 DevKit
-    bus_cfg.freq_write = SPI_FREQUENCY;
-#ifdef WOKWI
-    bus_cfg.spi_host = VSPI_HOST;
+#ifdef SPI_HOST
+    bus_cfg.spi_host = SPI_HOST;
 #else
     bus_cfg.spi_host = HSPI_HOST;
 #endif
@@ -83,7 +73,7 @@ public:
     bus_cfg.pin_mosi = TFT_MOSI;
     bus_cfg.pin_miso = TFT_MISO;
     bus_cfg.pin_dc = TFT_DC;
-#endif    
+    bus_cfg.freq_write = SPI_FREQUENCY;
     
     _bus_instance.config(bus_cfg);
     _panel_instance.setBus(&_bus_instance);
@@ -166,8 +156,13 @@ const int cds = CDS;
 #endif
 static bool backlight_is_on = true;
 #define DEFAULT_ROTATION 0
+#ifdef BTN
+#define BUTTON1 BTN
+#else
 #define BUTTON1 0 // GPIO0
+#endif
 #define TFT_BACKLIGHT_ON HIGH
+#define TFT_BACKLIGHT_OFF LOW
 #else // TTGO || ESPC6
 #define DEFAULT_ROTATION 1
 #ifdef ESPC6
@@ -824,7 +819,7 @@ void ShowHeaderDate(unsigned yoff) {
   // Get time from prevTimeStamp which is updated by ticker
   unsigned long t = currencies[cIndex].prevTimeStamp + TIMEZONE;
 #if (0 < MONITOR_DEEPSLEEP_TEST)
-  sprintf(buf, "%d:%02d", hour(t), minute(t));
+  sprintf(buf, "%d/%d %d:%02d", month(t), day(t), hour(t), minute(t));
 #else
     sprintf(buf, "%d/%d", month(t), day(t));
 #endif
@@ -1539,6 +1534,8 @@ void restoreSettings()
 #define WIFI_ATTEMPT_LIMIT 30 // seconds for WiFi connection trial
 static bool WiFiConnected = false;
 
+#define CDS_TEST 0 // 1 to show CdS value to serial output
+
 void SecProc()
 {
   static unsigned nWiFiTrial = 0;
@@ -1546,17 +1543,22 @@ void SecProc()
 #ifdef CDS
   // control LED Backlight
   unsigned br = analogRead(cds);
-  if (br < 1 && backlight_is_on) {
+  if (br < CDS_THRESHOLD && backlight_is_on) {
     tft.setBrightness(0);
+    digitalWrite(TFT_BL, TFT_BACKLIGHT_OFF);
     backlight_is_on = false;
     Serial.println("Back light turned off");
   }
-  else if (0 < br && !backlight_is_on) {
+  else if (CDS_THRESHOLD <= br && !backlight_is_on) {
     tft.setBrightness(BRIGHTNESS);
+    digitalWrite(TFT_BL, TFT_BACKLIGHT_ON);
     backlight_is_on = true;
     Serial.print("Back light turned on. CdS = ");
     Serial.println(br);
   }
+#if 0 < CDS_TEST
+  Serial.printf("CdS = %d\n", br);
+#endif
 #endif
   
   if (WiFi.status() == WL_CONNECTED) {
@@ -1745,6 +1747,10 @@ void setup()
   pinMode(TFT_BL, OUTPUT);
   digitalWrite(TFT_BL, TFT_BACKLIGHT_ON);
   backlight_is_on = true;
+#endif
+
+#ifdef BTN
+  pinMode(BTN, INPUT_PULLUP);
 #endif
 
   PHYSICAL_LCD.setRotation(DEFAULT_ROTATION + ROTATION_OFFSET); // set it to 1 or 3 for landscape resolution
