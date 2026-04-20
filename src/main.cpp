@@ -1745,9 +1745,12 @@ void setup()
 #ifdef CDS
   pinMode(cds, INPUT);
 #endif
+
+#if defined(TFT_BL) && !defined(TTGO) && !defined(ESPC6) // custom ESP32
   pinMode(TFT_BL, OUTPUT);
   digitalWrite(TFT_BL, TFT_BACKLIGHT_ON);
   backlight_is_on = true;
+#endif
 
 #ifdef BTN
   pinMode(BTN, INPUT_PULLUP);
