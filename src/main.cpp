@@ -1744,10 +1744,10 @@ void setup()
 
 #ifdef CDS
   pinMode(cds, INPUT);
+#endif
   pinMode(TFT_BL, OUTPUT);
   digitalWrite(TFT_BL, TFT_BACKLIGHT_ON);
   backlight_is_on = true;
-#endif
 
 #ifdef BTN
   pinMode(BTN, INPUT_PULLUP);
@@ -1808,7 +1808,7 @@ void setup()
   }  
   wifiMulti.run();
   
-#ifdef BUTTON1
+#if defined(BUTTON1) && !defined(HOLD_BTN_TO_POWEROFF)
   attachInterrupt(digitalPinToInterrupt(BUTTON1), buttonEventProc, FALLING);
 #endif
 #ifdef BUTTON2
@@ -1875,7 +1875,30 @@ void loop()
     }
   }
 #elif defined(R28T)
-  // for E32R28T
+#ifdef HOLD_BTN_TO_POWEROFF
+  static uint32_t btnPressStart = 0;
+  static bool btnActive = false;
+
+  if (digitalRead(BUTTON1) == LOW) {
+    if (!btnActive) {
+      btnPressStart = millis();
+      btnActive = true;
+    }
+    else if (millis() - btnPressStart > 3000) { // 3sec
+      PHYSICAL_LCD.fillScreen(TFT_BLACK);
+      PHYSICAL_LCD.setBrightness(0);
+      PHYSICAL_LCD.sleep();
+      esp_deep_sleep_start();
+    }
+  }
+  else {
+    if (btnActive) {
+      if (millis() - btnPressStart < 3000) buttonEventProc(); // short press to usual action
+      btnActive = false;
+    }
+  }
+#endif
+  
   static uint32_t lastTouchTime = 0;
   int32_t x, y;
 
