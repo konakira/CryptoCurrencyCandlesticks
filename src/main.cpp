@@ -812,7 +812,7 @@ static bool currencyRotationTriggered = false;
 #define ALERT_BLACK_DURATION 200 // msec
 
 #ifdef E_INK
-#define MONITOR_DEEPSLEEP_TEST 1 // 1 to show time, 0 to show date
+#define MONITOR_DEEPSLEEP_TEST 0 // 1 to show time, 0 to show date
 
 void ShowHeaderDate(unsigned yoff) {
   char buf[16];
