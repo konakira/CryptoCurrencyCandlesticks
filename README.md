@@ -29,6 +29,21 @@ You can interact with the device (or the simulated buttons in Wokwi) to control 
 
 *(Note: On the Wokwi simulator, simply click the red push buttons to trigger these actions.)*
 
+## e-Ink Version (M5Stack Core Ink) Specific Features
+
+![e-Ink Image](images/e-Ink.jpg "e-Ink version")
+
+The e-Ink version (M5Stack Core Ink) operates differently to conserve battery power. Below are its specific features:
+
+* **Data Update:** Candlestick data is updated only **once per day at 0:00 AM JST**.
+* **Interval:** While other versions display 5-minute candlestick charts, the e-Ink version displays **1-day (daily)** candlestick charts.
+* **Active Period:** After booting up, the device remains in an active state for **1 minute**. During this time, you can:
+    * Switch currencies (ETH/BTC)
+    * Rotate the screen display
+* **Automatic Power Off:** To maximize battery life, the device automatically powers off **1 minute** after the last operation (inactivity). However, the **display is maintained** on the e-Ink screen.
+
+*Note: JST stands for Japan Standard Time (UTC+9).*
+
 ## Setup & Configuration
 
 1. Rename `auth.h.example` to `auth.h` and enter your Wi-Fi credentials.
