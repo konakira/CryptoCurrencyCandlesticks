@@ -1719,6 +1719,8 @@ void buttonEventProc()
 }
 #endif
 
+#define WIFI_TEST 1 // 1 to show IP Address to the serial output
+
 void setup()
 {
 #ifdef ARDUINO_M5
@@ -1810,6 +1812,13 @@ void setup()
     wifiMulti.addAP(wifi_list[i].ssid, wifi_list[i].pass);
   }  
   wifiMulti.run();
+
+#if 0 < WIFI_TEST
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.print(" Connected. IP Address: ");
+    Serial.println(WiFi.localIP()); 
+  }  
+#endif
   
 #if defined(BUTTON1) && !defined(HOLD_BTN_TO_POWEROFF)
   attachInterrupt(digitalPinToInterrupt(BUTTON1), buttonEventProc, FALLING);
