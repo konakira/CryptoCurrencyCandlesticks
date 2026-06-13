@@ -488,7 +488,8 @@ Currency::obtainSticks(unsigned n, unsigned long t, unsigned long lastTimeStamp)
       errcounter = readHeader();
 
       if (errcounter < ERRTHRESHOLD) {
-	DynamicJsonDocument doc(50000);
+	static StaticJsonDocument<50000> doc;
+	doc.clear();
 	DeserializationError error = deserializeJson(doc, client);
 	client.stop();
 	
