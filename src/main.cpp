@@ -44,14 +44,16 @@ unsigned long lastActivityMillis = 0;
 
 class LGFX : public lgfx::LGFX_Device {
 #ifdef WOKWI
-  lgfx::Panel_ILI9341 _panel_instance; 
+  lgfx::Panel_ILI9341 _panel_instance;
+#elif defined(R35T)
+  lgfx::Panel_ST7796  _panel_instance;
 #else
   lgfx::Panel_ST7789  _panel_instance;
 #endif
   lgfx::Bus_SPI      _bus_instance;
   lgfx::Light_PWM    _light_instance;
 
-#if defined(R28T)
+#if defined(R28T) || defined(R35T)
   lgfx::Touch_XPT2046 _touch_instance;
 #endif
   
@@ -125,7 +127,7 @@ public:
     _panel_instance.setLight(&_light_instance);
 
     setPanel(&_panel_instance);
-#if defined(R28T)
+#if defined(R28T) || defined(R35T)
     // --- Touch Panel Setup (XPT2046) ---
     auto tcfg = _touch_instance.config();
     tcfg.x_min      = 300;
@@ -133,13 +135,13 @@ public:
     tcfg.y_min      = 300;
     tcfg.y_max      = 3900;
     tcfg.pin_int    = 36;
-    tcfg.bus_shared = false; 
+    tcfg.bus_shared = TCFG_BUS_SHARED;
     tcfg.offset_rotation = 0;
 
-    tcfg.spi_host = VSPI_HOST; 
-    tcfg.pin_sclk = 25;
-    tcfg.pin_mosi = 32;
-    tcfg.pin_miso = 39;
+    tcfg.spi_host = TCFG_SPI_HOST;
+    tcfg.pin_sclk = TCFG_PIN_SCLK;
+    tcfg.pin_mosi = TCFG_PIN_MOSI;
+    tcfg.pin_miso = TCFG_PIN_MISO;
     tcfg.pin_cs   = 33;
     tcfg.freq     = 1000000;
 
@@ -1887,7 +1889,7 @@ void loop()
       }
     }
   }
-#elif defined(R28T)
+#elif defined(R28T) || defined(R35T)
 #ifdef HOLD_BTN_TO_POWEROFF
   static uint32_t btnPressStart = 0;
   static bool btnActive = false;
