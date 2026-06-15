@@ -230,7 +230,7 @@ static bool backlight_is_on = true;
 
 #include <TimeLib.h>
 
-#define MAX_HORIZONTAL_RESOLUTION 321
+#define MAX_HORIZONTAL_RESOLUTION 481
 
 #ifdef ARDUINO_M5
 #define PHYSICAL_LCD M5.Display
@@ -914,7 +914,7 @@ ShowLastPrice(char *buf, int lastPricePixel, unsigned priceColor, int yoff)
 {
   int textY;
   if (dedicatedPriceAreaHeight) {
-    textY = 0;
+    textY = yoff;
     if (yoff == 0) {
       ShowBatteryStatus(BAT_POS_TOPRIGHT);
     }
@@ -1463,7 +1463,7 @@ void Currency::SwitchCurrency()
     numScreens = 3 - numScreens; // (numScreens == 2) ? 1 : 2, numScreen = {1, 2}
     tftHeight = LCD.height() / numScreens;
     unsigned priceHeight = PriceFontHeight + LCD.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT);
-    if (MINIMUM_SEPARATABLE_HEIGHT < tftHeight - priceHeight) {
+    if (numScreens == 1 && MINIMUM_SEPARATABLE_HEIGHT < tftHeight - priceHeight) {
       dedicatedPriceAreaHeight = priceHeight;
       tftHeight -= priceHeight;
     }
@@ -1596,7 +1596,7 @@ void SecProc()
       tftHalfHeight = tftHeight / 2;
 
       unsigned priceHeight = PriceFontHeight + LCD.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT);
-      if (MINIMUM_SEPARATABLE_HEIGHT < tftHeight - priceHeight) {
+      if (numScreens == 1 && MINIMUM_SEPARATABLE_HEIGHT < tftHeight - priceHeight) {
         dedicatedPriceAreaHeight = priceHeight;
         tftHeight -= priceHeight;
       }
@@ -1798,7 +1798,7 @@ void setup()
   PriceFontHeight = LCD.fontHeight(PRICEFONT) - PRICE_FONT_HEIGHT_ADJUSTMENT;
 
   unsigned priceHeight = PriceFontHeight + LCD.fontHeight(OTHER_CURRENCY_BASE_VALUE_FONT);
-  if (MINIMUM_SEPARATABLE_HEIGHT < tftHeight - priceHeight) {
+  if (numScreens == 1 && MINIMUM_SEPARATABLE_HEIGHT < tftHeight - priceHeight) {
     dedicatedPriceAreaHeight = priceHeight;
     tftHeight -= priceHeight;
   }
